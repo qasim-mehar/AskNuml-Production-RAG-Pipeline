@@ -11,6 +11,7 @@ import json
 import threading
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
+from dataclasses import replace
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -42,6 +43,7 @@ from uni_rag_core import (
     Answer,
     Chunk,
     Document,
+    FakeClock,
     ImageRef,
     Language,
     ObjectStore,
@@ -215,6 +217,16 @@ def test_parser_swap_uses_docling_adapter(integration_settings: Settings) -> Non
     assert isinstance(parser, DoclingParser)
     parsed = parser.parse(_FIXTURE_DIR / "content-v1.html")
     assert parsed.pages and parsed.pages[0].text
+
+
+def test_clock_swap_uses_system_clock_in_pipeline(integration_settings: Settings) -> None:
+    """Production config uses SystemClock; CI default and pinned tests stay fake."""
+    assert AdapterSelection.from_settings(integration_settings).clock == "system"
+    clock_only = replace(AdapterSelection.ci_default(), clock="system")
+    assert isinstance(build_context(clock_only, integration_settings).clock, SystemClock)
+
+    pinned = build_context(AdapterSelection.ci_default(), integration_settings, clock=FakeClock())
+    assert isinstance(pinned.clock, FakeClock)
 
 
 def test_metadata_swap_uses_postgres_adapter_and_linear_history(

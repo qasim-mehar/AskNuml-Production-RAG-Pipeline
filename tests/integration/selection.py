@@ -60,6 +60,8 @@ class AdapterSelection:
             object_store="minio",
             # swap 6: metadata -> Lane D's Postgres adapter + Alembic baseline
             metadata="postgres",
+            # swap 7: clock -> core SystemClock (FakeClock stays for pinned tests)
+            clock="system",
             live_providers=live,
         )
 
