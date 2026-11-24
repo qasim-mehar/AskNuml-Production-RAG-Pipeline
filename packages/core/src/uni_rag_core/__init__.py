@@ -3,10 +3,13 @@
 from uni_rag_core.config import Settings, get_settings, load_settings
 from uni_rag_core.errors import (
     AbstentionError,
+    AuthError,
     ConfigError,
     FetchError,
+    NotFoundError,
     ParseError,
     PortError,
+    RateLimitError,
     RetrievalError,
     StorageError,
     UniRagError,
@@ -25,8 +28,10 @@ from uni_rag_core.logging import configure_logging, current_trace_id, get_logger
 from uni_rag_core.ports import LLM, Clock, Embedder, Fetcher, ObjectStore, Reranker, VectorStore
 from uni_rag_core.schemas import (
     Answer,
+    BlockKind,
     Chunk,
     Citation,
+    ContentBlock,
     DocType,
     Document,
     FetchResult,
@@ -44,8 +49,11 @@ __version__ = "0.1.0"
 __all__ = [
     "AbstentionError",
     "Answer",
+    "AuthError",
+    "BlockKind",
     "Chunk",
     "Citation",
+    "ContentBlock",
     "Clock",
     "ConfigError",
     "DocType",
@@ -62,6 +70,7 @@ __all__ = [
     "FetchResult",
     "Fetcher",
     "ImageRef",
+    "NotFoundError",
     "LLM",
     "Language",
     "ObjectStore",
@@ -69,6 +78,7 @@ __all__ = [
     "PastPaperQuestion",
     "PortError",
     "Query",
+    "RateLimitError",
     "RedirectHop",
     "Reranker",
     "RetrievalError",

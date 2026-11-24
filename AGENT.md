@@ -42,7 +42,7 @@ Every change names the laws it touches. These definitions are authoritative.
 - **L3 Ports and adapters.** LLM, embedder, reranker, vector store, object store, HTTP fetcher and clock all sit behind `Protocol` classes in `packages/core/src/uni_rag_core/ports/`. An in-memory fake ships for each.
 - **L4 Determinism.** Fakes, seeds and tests are deterministic. The same inputs produce the same outputs; no wall-clock or random values leak into results.
 - **L5 Provenance.** Every answer is traceable to a real source URL and `last_crawled`. Cite or abstain; never invent a deadline, fee or date.
-- **L6 Chunk metadata.** `Chunk` carries `chunk_id`, `doc_id`, `source_url`, `heading_path`, `content_hash`, `last_crawled`, `doc_type`, `version`, and an optional `page` and `image_ref`.
+- **L6 Chunk metadata.** `Chunk` carries `chunk_id`, `doc_id`, `source_url`, `heading_path`, `content_hash`, `last_crawled`, `doc_type`, `version`, and optional `page`, `image_ref` and `metadata` (a mapping for structured producer notes such as atomic-unit reasons). `Citation.last_crawled` carries the same provenance onto answers (L5); both additions are optional for backwards compatibility (ADR 0007).
 - **L7 Language parity.** English, Urdu and Roman Urdu are first-class everywhere: ingestion, retrieval, evaluation and UI.
 - **L8 Config.** One typed `pydantic-settings` module (`uni_rag_core.config.settings`). No `os.environ` reads anywhere else. Settings fail fast when required values are missing.
 - **L9 Small modules.** Keep modules single-purpose. Pure functions in `domain`, I/O in `adapters`, orchestration in `service`.

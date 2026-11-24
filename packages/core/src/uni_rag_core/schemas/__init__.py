@@ -1,6 +1,7 @@
 """Frozen data contracts. Import from here, never from individual modules."""
 
 from uni_rag_core.schemas.answer import Answer, Citation
+from uni_rag_core.schemas.blocks import BlockKind, ContentBlock
 from uni_rag_core.schemas.chunk import Chunk, ImageRef, PayloadValue, ScoredChunk, VectorHit
 from uni_rag_core.schemas.document import Document
 from uni_rag_core.schemas.enums import DocType, Language
@@ -10,7 +11,9 @@ from uni_rag_core.schemas.query import Query
 
 __all__ = [
     "Answer",
+    "BlockKind",
     "Citation",
+    "ContentBlock",
     "Chunk",
     "DocType",
     "Document",

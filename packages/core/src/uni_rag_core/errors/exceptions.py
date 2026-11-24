@@ -16,6 +16,18 @@ class ConfigError(UniRagError):
     """Settings are missing or invalid (L8)."""
 
 
+class AuthError(UniRagError):
+    """A caller failed authentication or authorization (L11)."""
+
+
+class NotFoundError(UniRagError):
+    """A requested resource does not exist (L11)."""
+
+
+class RateLimitError(UniRagError):
+    """A caller exceeded its rate limit (L11)."""
+
+
 class PortError(UniRagError):
     """Base for port/adapter failures."""
 

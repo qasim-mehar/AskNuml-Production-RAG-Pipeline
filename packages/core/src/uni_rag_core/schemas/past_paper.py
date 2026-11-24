@@ -20,3 +20,7 @@ class PastPaperQuestion(BaseModel):
     subject: str | None = None
     options: list[str] = Field(default_factory=list)
     image_ref: ImageRef | None = None
+    course_code: str | None = None
+    term: str | None = None
+    exam_type: str | None = None
+    department: str | None = None

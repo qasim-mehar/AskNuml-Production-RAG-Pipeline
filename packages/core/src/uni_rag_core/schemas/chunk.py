@@ -1,5 +1,6 @@
 """Retrieval unit contracts, including the mandatory L6 metadata fields."""
 
+from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 
@@ -20,6 +21,7 @@ class ImageRef(BaseModel):
     page: int | None = None
     caption: str | None = None
     mime_type: str = "image/png"
+    image_url: str | None = None
 
 
 class Chunk(BaseModel):
@@ -41,6 +43,7 @@ class Chunk(BaseModel):
     page: int | None = None
     image_ref: ImageRef | None = None
     language: Language = Language.EN
+    metadata: Mapping[str, str] | None = None
 
 
 class ScoredChunk(BaseModel):

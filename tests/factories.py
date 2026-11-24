@@ -4,8 +4,10 @@ from datetime import UTC, datetime
 
 from uni_rag_core import (
     Answer,
+    BlockKind,
     Chunk,
     Citation,
+    ContentBlock,
     DocType,
     Document,
     FetchResult,
@@ -26,6 +28,7 @@ def image_ref() -> ImageRef:
         source_url="https://example.edu/papers/2024.pdf",
         page=1,
         caption="Past paper page 1",
+        image_url="/api/images/images/doc-1/p1.png",
     )
 
 
@@ -38,6 +41,10 @@ def document() -> Document:
         last_crawled=FIXED_TIME,
         content_hash="hash-doc-1",
         metadata={"faculty": "CS"},
+        blocks=[
+            ContentBlock(kind=BlockKind.HEADING, text="CS-101 Course Outline", index=0),
+            ContentBlock(kind=BlockKind.PARAGRAPH, text="Assessment: midterm 40 percent.", index=1),
+        ],
     )
 
 
@@ -56,6 +63,7 @@ def chunk() -> Chunk:
         token_count=12,
         page=3,
         image_ref=image_ref(),
+        metadata={"atomic_unit_reason": "table kept whole", "producer": "chunker-v2"},
     )
 
 
@@ -71,6 +79,10 @@ def question() -> PastPaperQuestion:
         subject="CS-101",
         options=["A", "B", "C", "D"],
         image_ref=image_ref(),
+        course_code="CS-101",
+        term="Fall",
+        exam_type="Midterm",
+        department="Computer Science",
     )
 
 
@@ -92,6 +104,7 @@ def citation() -> Citation:
         snippet="The midterm exam contributes 40 percent",
         page=3,
         score=0.91,
+        last_crawled=FIXED_TIME,
     )
 
 
@@ -105,6 +118,7 @@ def answer() -> Answer:
         abstained=False,
         confidence=0.91,
         language=Language.EN,
+        next_step="Check the course outline for updated assessment weights.",
     )
 
 

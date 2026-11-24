@@ -1,5 +1,7 @@
 """Answer and citation contracts (L5 provenance, L13 abstention)."""
 
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from uni_rag_core.schemas.chunk import ImageRef
@@ -17,6 +19,7 @@ class Citation(BaseModel):
     snippet: str
     page: int | None = None
     score: float | None = None
+    last_crawled: datetime | None = None
 
 
 class Answer(BaseModel):
@@ -32,3 +35,5 @@ class Answer(BaseModel):
     abstained: bool = False
     confidence: float = 0.0
     language: Language = Language.EN
+    next_step: str | None = None
+    abstention_reason: str | None = None

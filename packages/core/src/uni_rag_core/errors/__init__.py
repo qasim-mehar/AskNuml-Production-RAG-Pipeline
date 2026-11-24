@@ -2,10 +2,13 @@
 
 from uni_rag_core.errors.exceptions import (
     AbstentionError,
+    AuthError,
     ConfigError,
     FetchError,
+    NotFoundError,
     ParseError,
     PortError,
+    RateLimitError,
     RetrievalError,
     StorageError,
     UniRagError,
@@ -14,10 +17,13 @@ from uni_rag_core.errors.exceptions import (
 
 __all__ = [
     "AbstentionError",
+    "AuthError",
     "ConfigError",
     "FetchError",
+    "NotFoundError",
     "ParseError",
     "PortError",
+    "RateLimitError",
     "RetrievalError",
     "StorageError",
     "UniRagError",
