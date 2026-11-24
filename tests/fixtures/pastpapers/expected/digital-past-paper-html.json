@@ -1,0 +1,49 @@
+{
+  "fixture": "digital-past-paper.html",
+  "source_kind": "docling-html",
+  "source_path": "tests/fixtures/pastpapers/digital-past-paper.html",
+  "image_source": null,
+  "doc_id": "paper-digital-html",
+  "source_url": "https://example.edu/papers/digital-past-paper.html",
+  "title": "MATH-201 Final Examination",
+  "doc_type": "past_paper",
+  "language": "en",
+  "expected_page_count": 1,
+  "expected_metadata": {
+    "course_code": "MATH-201",
+    "year": 2025,
+    "term": "Spring",
+    "exam_type": "Final",
+    "department": "Mathematics"
+  },
+  "expected_questions": [
+    {
+      "question_number": 1,
+      "page": 1,
+      "text": "Evaluate the limit of (x^2 - 1) / (x - 1) as x approaches 1. [10 marks]",
+      "options": []
+    },
+    {
+      "question_number": 2,
+      "page": 1,
+      "text": "Differentiate f(x) = x^3 sin(x) and show each step. [10 marks]",
+      "options": []
+    },
+    {
+      "question_number": 3,
+      "page": 1,
+      "text": "Prove that a continuous function on a closed interval attains its maximum. [10 marks]",
+      "options": []
+    }
+  ],
+  "expected_tables": [
+    {
+      "page": 1,
+      "header": ["Paper", "Total marks", "Duration"],
+      "rows": [
+        ["MATH-201 final", "30", "180 minutes"],
+        ["Resit", "30", "180 minutes"]
+      ]
+    }
+  ]
+}

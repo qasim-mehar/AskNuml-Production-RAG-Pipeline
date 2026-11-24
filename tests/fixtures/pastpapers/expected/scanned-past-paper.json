@@ -1,0 +1,35 @@
+{
+  "fixture": "scanned-past-paper-page.png",
+  "source_kind": "mineru-transcription",
+  "source_path": "tests/fixtures/pdf/scanned-past-paper-page.png",
+  "transcription_path": "tests/fixtures/pastpapers/scanned-past-paper-transcription.txt",
+  "image_source": "tests/fixtures/pdf/scanned-past-paper-page.png",
+  "doc_id": "paper-scanned",
+  "source_url": "https://example.edu/papers/scanned-past-paper-page.png",
+  "title": "CS-101 Final Examination",
+  "doc_type": "past_paper",
+  "language": "ur",
+  "expected_page_count": 1,
+  "expected_metadata": {
+    "course_code": "CS-101",
+    "year": 2024,
+    "term": "Fall",
+    "exam_type": "Final",
+    "department": "Computer Science"
+  },
+  "expected_questions": [
+    {
+      "question_number": 1,
+      "page": 1,
+      "text": "Define an algorithm.",
+      "options": []
+    },
+    {
+      "question_number": 2,
+      "page": 1,
+      "text": "غزل اور نظم میں فرق واضح کریں۔",
+      "options": []
+    }
+  ],
+  "expected_tables": []
+}
