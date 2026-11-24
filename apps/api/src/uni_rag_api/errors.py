@@ -13,14 +13,17 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse, Response
 from starlette.types import ExceptionHandler
 
-from uni_rag_api.config import ApiSettings
 from uni_rag_api.schemas import ErrorBody
 from uni_rag_core import (
     AbstentionError,
+    ApiSection,
+    AuthError,
     ConfigError,
     FetchError,
+    NotFoundError,
     ParseError,
     PortError,
+    RateLimitError,
     RetrievalError,
     StorageError,
     UniRagError,
@@ -31,22 +34,10 @@ from uni_rag_core import (
 
 _logger = get_logger("uni_rag_api.errors")
 
-
-class AuthenticationError(UniRagError):
-    """The API-key stub rejected a caller."""
-
-
-class RateLimitError(UniRagError):
-    """The caller exhausted its token bucket."""
-
-
-class NotFoundError(UniRagError):
-    """A requested resource does not exist (core has no NotFoundError yet)."""
-
-
-# Most specific first: isinstance matching relies on this ordering.
+# Most specific first: isinstance matching relies on this ordering. The three
+# transport errors are the folded core types (ADR 0007); no API subclasses remain.
 _STATUS_BY_TYPE: tuple[tuple[type[UniRagError], int, str], ...] = (
-    (AuthenticationError, 401, "unauthorized"),
+    (AuthError, 401, "unauthorized"),
     (RateLimitError, 429, "rate_limited"),
     (NotFoundError, 404, "not_found"),
     (ValidationError, 422, "validation_error"),
@@ -88,7 +79,7 @@ def _error_response(
 
 
 async def handle_uni_rag_error(request: Request, exc: UniRagError) -> Response:
-    """Render a typed core (or API-local) error with a structured log line."""
+    """Render a typed core error with a structured log line."""
     status, code = map_error(exc)
     _logger.warning(
         "api.typed_error",
@@ -156,8 +147,10 @@ async def handle_unhandled(request: Request, exc: Exception) -> Response:
         cause=f"{type(exc).__name__}: {exc}",
         trace_id=trace_id,
     )
-    settings = cast("ApiSettings", request.app.state.api_settings)
-    headers = {settings.trace_header: trace_id} if trace_id else None
+    settings = cast("ApiSection", request.app.state.api_settings)
+    headers = (
+        {settings.trace_header: trace_id} if trace_id and settings.trace_header_enabled else None
+    )
     return _error_response(
         500,
         ErrorBody(code="internal_error", message="An unexpected error occurred."),
@@ -176,7 +169,7 @@ def register_error_handlers(app: FastAPI) -> None:
 
 
 __all__ = [
-    "AuthenticationError",
+    "AuthError",
     "NotFoundError",
     "RateLimitError",
     "map_error",

@@ -1,14 +1,22 @@
-"""Deterministic fake answer service (L3, L4, L5).
+"""Deterministic fake answer and object-store-backed image services (L3, L4, L5).
 
-The service owns answer orchestration; routers only route and serialise (L9).
-No network, model or clock call happens here.
+Services own orchestration; routers only route and serialise (L9). No network
+call happens here: the object store arrives as an injected synchronous port.
 """
 
 from collections.abc import Iterator, Mapping
+from mimetypes import guess_type
 
 from uni_rag_api.fixtures import CORPUS, FALLBACK_ANSWER
-from uni_rag_api.ports import AnswerService, FakeCorpus, HealthProbe
-from uni_rag_core import Answer, Query
+from uni_rag_api.ports import (
+    AnswerService,
+    FakeCorpus,
+    HealthProbe,
+    ImageService,
+    StoredImage,
+    TypedObjectStore,
+)
+from uni_rag_core import Answer, NotFoundError, ObjectStore, Query, StorageError
 
 
 class FakeAnswerService:
@@ -42,4 +50,73 @@ class FakeHealthProbe:
         return self.ready
 
 
-__all__ = ["FakeAnswerService", "FakeHealthProbe", "AnswerService", "HealthProbe"]
+class KeySuffixTypedStore:
+    """Adapt a plain ObjectStore to TypedObjectStore with one deterministic rule."""
+
+    def __init__(self, store: ObjectStore) -> None:
+        self._store = store
+
+    def put(self, key: str, data: bytes, *, content_type: str = "application/octet-stream") -> str:
+        """Store bytes through the wrapped port."""
+        return self._store.put(key, data, content_type=content_type)
+
+    def get(self, key: str) -> bytes:
+        """Read bytes through the wrapped port."""
+        return self._store.get(key)
+
+    def delete(self, key: str) -> None:
+        """Delete through the wrapped port."""
+        self._store.delete(key)
+
+    def content_type_of(self, key: str) -> str:
+        """Derive the content type from the stored key's suffix."""
+        guessed, _ = guess_type(key)
+        return guessed or "application/octet-stream"
+
+
+def as_typed_store(store: ObjectStore) -> TypedObjectStore:
+    """Expose a uniform content-type lookup for fake and real stores (L4)."""
+    return store if isinstance(store, TypedObjectStore) else KeySuffixTypedStore(store)
+
+
+class ObjectStoreImageService:
+    """Resolve ADR 0007 image refs through the frozen ObjectStore port (L3, L5)."""
+
+    def __init__(self, store: TypedObjectStore) -> None:
+        self._store = store
+
+    def get(self, ref_id: str) -> StoredImage:
+        """Return stored image bytes; missing keys raise a typed core NotFoundError."""
+        if not ref_id or ref_id.startswith("/") or ".." in ref_id.split("/"):
+            raise NotFoundError("Image reference does not exist.", context={"ref_id": ref_id})
+        try:
+            data = self._store.get(ref_id)
+        except StorageError as exc:
+            if not _is_missing(exc):
+                raise
+            raise NotFoundError(
+                "Image reference does not exist.", context={"ref_id": ref_id}
+            ) from exc
+        return StoredImage(data=data, content_type=self._content_type(ref_id))
+
+    def _content_type(self, ref_id: str) -> str:
+        """Read the type from the store (recorded for fakes, key-derived for real)."""
+        return self._store.content_type_of(ref_id)
+
+
+def _is_missing(exc: StorageError) -> bool:
+    """Distinguish a missing object (404) from a broken store (503)."""
+    text = f"{type(exc).__name__}: {exc.message}".lower()
+    return "not found" in text or "nosuchkey" in text or "404" in text
+
+
+__all__ = [
+    "AnswerService",
+    "FakeAnswerService",
+    "FakeHealthProbe",
+    "HealthProbe",
+    "ImageService",
+    "KeySuffixTypedStore",
+    "ObjectStoreImageService",
+    "as_typed_store",
+]

@@ -7,10 +7,9 @@ import re
 import pytest
 from conftest import SteppableClock
 from fastapi.testclient import TestClient
-from helpers import make_query
+from helpers import make_query, make_settings
 
 from uni_rag_api.app import create_app
-from uni_rag_api.config import ApiSettings
 from uni_rag_core.logging.logger import JsonFormatter
 
 
@@ -44,18 +43,28 @@ def test_unsafe_incoming_trace_id_is_replaced(client: TestClient) -> None:
 
 def test_trace_header_name_is_settings_driven() -> None:
     """The trace header name is a typed setting, not a literal."""
-    client = TestClient(create_app(ApiSettings(trace_header="X-Custom-Trace")))
+    client = TestClient(create_app(make_settings(trace_header="X-Custom-Trace")))
 
     response = client.get("/health/live")
 
     assert re.fullmatch(r"[0-9a-f]{32}", response.headers["X-Custom-Trace"])
 
 
+def test_trace_header_can_be_disabled_without_losing_request_id() -> None:
+    """ADR 0008's trace_header_enabled switch is honoured (L8, L10)."""
+    client = TestClient(create_app(make_settings(trace_header_enabled=False)))
+
+    response = client.get("/health/live")
+
+    assert response.headers["x-request-id"]
+    assert "X-Trace-Id" not in response.headers
+
+
 def test_rate_limit_returns_typed_429_and_refills_on_clock(
     clock: SteppableClock,
 ) -> None:
     """The bucket enforces capacity and refills at the settings-driven rate."""
-    settings = ApiSettings(
+    settings = make_settings(
         auth_enabled=False, rate_limit_capacity=2, rate_limit_refill_per_second=1.0
     )
     client = TestClient(create_app(settings, clock=clock))
@@ -79,7 +88,7 @@ def test_rate_limit_returns_typed_429_and_refills_on_clock(
 
 def test_rate_limit_buckets_are_per_api_key() -> None:
     """Separate keys never share a bucket."""
-    settings = ApiSettings(
+    settings = make_settings(
         auth_enabled=False, rate_limit_capacity=1, rate_limit_refill_per_second=1.0
     )
     client = TestClient(create_app(settings))
@@ -100,7 +109,7 @@ def test_rate_limit_buckets_are_per_api_key() -> None:
 
 def test_health_probes_are_exempt_from_rate_limiting() -> None:
     """Probes stay available even when the query bucket is empty."""
-    settings = ApiSettings(
+    settings = make_settings(
         auth_enabled=False, rate_limit_capacity=1, rate_limit_refill_per_second=1.0
     )
     client = TestClient(create_app(settings))

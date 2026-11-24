@@ -1,8 +1,9 @@
-"""Measure query latency against the fake backend only (L1).
+"""Measure /api/v1/query latency on both backends (L1).
 
-Run with ``uv run python apps/api/scripts/benchmark.py --requests 200``. The
-logged record is explicitly labelled ``backend=fake``; these numbers are not
-production capacity estimates.
+Run with ``uv run python apps/api/scripts/benchmark.py --requests 200 --backend fake``
+(or ``--backend real`` for the pipeline composed with deterministic fakes).
+Records are labelled with the backend and load; these are in-process numbers,
+not production capacity estimates.
 """
 
 import argparse
@@ -12,9 +13,9 @@ from time import perf_counter
 from fastapi.testclient import TestClient
 
 from uni_rag_api.app import create_app
-from uni_rag_api.config import ApiSettings
+from uni_rag_api.composition import Backend, ephemeral_settings, seeded_pipeline_ports
 from uni_rag_api.fixtures import QUERY_EN
-from uni_rag_core import Language, configure_logging, get_logger
+from uni_rag_core import ApiSection, Language, configure_logging, get_logger
 
 
 def percentile(values: list[float], fraction: float) -> float:
@@ -25,16 +26,22 @@ def percentile(values: list[float], fraction: float) -> float:
 
 
 def main() -> None:
-    """Run the in-process fake-backed load and log a labelled latency summary."""
+    """Run labelled in-process load and log latency percentiles per backend."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--requests", type=int, default=200)
+    parser.add_argument("--backend", type=Backend, choices=list(Backend), default=Backend.FAKE)
     args = parser.parse_args()
     if args.requests < 1:
         parser.error("--requests must be at least 1")
 
     configure_logging("INFO")
-    settings = ApiSettings(auth_enabled=False, rate_limit_capacity=args.requests + 10)
-    with TestClient(create_app(settings)) as client:
+    settings = ephemeral_settings(api=ApiSection(rate_limit_capacity=args.requests + 10))
+    app = create_app(
+        settings,
+        backend=args.backend,
+        pipeline_ports=seeded_pipeline_ports() if args.backend is Backend.REAL else None,
+    )
+    with TestClient(app) as client:
         latencies: list[float] = []
         for _ in range(args.requests):
             started = perf_counter()
@@ -55,7 +62,7 @@ def main() -> None:
 
     get_logger("uni_rag_api.benchmark").info(
         "api.benchmark",
-        backend="fake",
+        backend=args.backend.value,
         load={
             "requests": args.requests,
             "concurrency": 1,
@@ -68,7 +75,7 @@ def main() -> None:
             "p99": percentile(latencies, 0.99),
             "max": round(max(latencies), 3),
         },
-        note="fake-backend measurement only; not production capacity",
+        note="in-process measurement only; not production capacity",
     )
 
 

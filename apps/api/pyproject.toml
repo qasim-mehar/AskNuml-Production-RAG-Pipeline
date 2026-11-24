@@ -9,6 +9,7 @@ description = "HTTP API service for uni-rag."
 requires-python = ">=3.11"
 dependencies = [
     "uni-rag-core>=0.1.0",
+    "uni-rag-retrieval>=0.1.0",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "pydantic>=2.9",
@@ -19,9 +20,16 @@ dependencies = [
 dev = [
     "httpx>=0.27",
 ]
+# Live mode selects Lane D's storage adapters behind their ports (L3); SDKs
+# stay optional so fake-backed deployments install no storage provider.
+live = [
+    "uni-rag-indexing>=0.1.0",
+]
 
 [tool.uv.sources]
 uni-rag-core = { workspace = true }
+uni-rag-retrieval = { workspace = true }
+uni-rag-indexing = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/uni_rag_api"]

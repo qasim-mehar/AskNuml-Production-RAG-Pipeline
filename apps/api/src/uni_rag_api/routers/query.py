@@ -12,12 +12,11 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from uni_rag_api.config import ApiSettings
-from uni_rag_api.deps.auth import require_api_key
+from uni_rag_api.deps.auth import EnforcedApiKey
 from uni_rag_api.deps.state import answer_service, api_settings
 from uni_rag_api.ports import AnswerService
 from uni_rag_api.schemas import Answer, CitationsEvent, ErrorBody, TokenEvent
-from uni_rag_core import Query, ValidationError
+from uni_rag_core import ApiSection, Query, ValidationError
 
 router = APIRouter(prefix="/api/v1", tags=["query"])
 
@@ -28,12 +27,12 @@ _ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     503: {"model": ErrorBody, "description": "Upstream port failure"},
 }
 
-Settings = Annotated[ApiSettings, Depends(api_settings)]
+Settings = Annotated[ApiSection, Depends(api_settings)]
 Service = Annotated[AnswerService, Depends(answer_service)]
-ApiKey = Annotated[str | None, Depends(require_api_key)]
+ApiKey = EnforcedApiKey
 
 
-def _check_top_k(query: Query, settings: ApiSettings) -> None:
+def _check_top_k(query: Query, settings: ApiSection) -> None:
     """Enforce the typed top_k ceiling before the service is called."""
     if query.top_k > settings.max_top_k:
         raise ValidationError(

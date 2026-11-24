@@ -6,9 +6,10 @@ adapters may be async internally (AGENT.md §4).
 """
 
 from collections.abc import Iterator, Mapping
+from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
-from uni_rag_core import Answer, Query
+from uni_rag_core import Answer, ObjectStore, Query
 
 
 @runtime_checkable
@@ -30,6 +31,32 @@ class HealthProbe(Protocol):
 
     def is_ready(self) -> bool:
         """Return True when downstream dependencies are available."""
+        ...
+
+
+@runtime_checkable
+class TypedObjectStore(ObjectStore, Protocol):
+    """ObjectStore that can report a stored object's content type (ADR 0007)."""
+
+    def content_type_of(self, key: str) -> str:
+        """Return the content type recorded for ``key``."""
+        ...
+
+
+@dataclass(frozen=True)
+class StoredImage:
+    """Bytes and content type resolved from an object-store entry."""
+
+    data: bytes
+    content_type: str
+
+
+@runtime_checkable
+class ImageService(Protocol):
+    """Synchronous image lookup used by the HTTP image route (L3)."""
+
+    def get(self, ref_id: str) -> StoredImage:
+        """Return stored bytes and their content type, or raise core NotFoundError."""
         ...
 
 

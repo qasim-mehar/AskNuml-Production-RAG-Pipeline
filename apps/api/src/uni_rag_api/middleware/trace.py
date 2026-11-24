@@ -31,9 +31,12 @@ def _extract_trace_id(scope: Scope, header_key: bytes) -> str:
 class TraceMiddleware:
     """Bind a trace id to context, echo it in a header and log each request."""
 
-    def __init__(self, app: ASGIApp, *, header_name: str, logger: TraceLogger) -> None:
+    def __init__(
+        self, app: ASGIApp, *, header_name: str, logger: TraceLogger, header_enabled: bool = True
+    ) -> None:
         self._app = app
         self._header_key = header_name.lower().encode("ascii")
+        self._header_enabled = header_enabled
         self._logger = logger
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -53,7 +56,13 @@ class TraceMiddleware:
             if message["type"] == "http.response.start":
                 status = int(message["status"])
                 headers: list[tuple[bytes, bytes]] = list(message.get("headers", []))
-                if not any(key.lower() == self._header_key for key, _ in headers):
+                present = {key.lower() for key, _ in headers}
+                # Lane H reads x-request-id; the configured trace header stays
+                # available for existing clients (ADR 0009, L10).
+                if b"x-request-id" not in present:
+                    headers.append((b"x-request-id", trace_id.encode("ascii")))
+                    present.add(b"x-request-id")
+                if self._header_enabled and self._header_key not in present:
                     headers.append((self._header_key, trace_id.encode("ascii")))
                 message = {**message, "headers": headers}
             await send(message)

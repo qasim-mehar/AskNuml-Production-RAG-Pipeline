@@ -1,9 +1,12 @@
-"""Deterministic fixture corpus backing the fake answer service (L3, L4).
+"""Deterministic fixtures for the fake backend and the new HTTP routes (L3, L4).
 
-This is the MVP fake backend: every answer here carries frozen core provenance
-fields (L5, L6). Lane E's real retrieval service replaces the injected service
-at integration; the wire contract does not change.
+Every answer here carries frozen core provenance fields (L5, L6). Lane E's real
+retrieval service replaces the injected service at integration; the wire
+contract does not change. Image bytes and their content types are fixed so the
+image route can be tested without a live object store.
 """
+
+from datetime import UTC, datetime
 
 from uni_rag_core import Answer, Citation, ImageRef, Language
 
@@ -149,17 +152,63 @@ CORPUS: dict[str, Answer] = {
     QUERY_IMAGE: IMAGE_ANSWER,
 }
 
+# ADR 0007 fields are frozen here so both backends can be checked for pass-through.
+LAST_CRAWLED = datetime(2026, 1, 15, 9, 30, tzinfo=UTC)
+REAL_BACKEND_ANSWER = Answer(
+    answer_id="answer-real-001",
+    query_id="query-real-001",
+    text="The CS-101 past paper page is available with the citation below.",
+    citations=[
+        Citation(
+            chunk_id="chunk-paper-001",
+            doc_id="doc-paper-2024",
+            source_url="https://example.edu/papers/2024.pdf",
+            snippet="CS-101 past paper, question 1",
+            page=1,
+            score=0.94,
+            last_crawled=LAST_CRAWLED,
+        )
+    ],
+    images=[
+        ImageRef(
+            ref_id="images/papers/2024-p1.png",
+            source_url="https://example.edu/papers/2024.pdf",
+            page=1,
+            caption="CS-101 past paper page 1",
+            image_url="/api/images/images/papers/2024-p1.png",
+        )
+    ],
+    abstained=False,
+    confidence=0.94,
+    language=Language.EN,
+    next_step=None,
+    abstention_reason=None,
+)
+
+# Object-store contents for the fake image route. Keys mirror ImageRef.ref_id
+# values; the Urdu key pins L7 round-tripping through the encoded path segment.
+IMAGE_BYTES: dict[str, bytes] = {
+    "images/papers/2024-p1.png": b"\x89PNG\r\n\x1a\n uni-rag fake CS-101 past paper page 1",
+    "images/cs101/midterm-p3.png": b"\x89PNG\r\n\x1a\n uni-rag fake assessment table page 3",
+    "images/urdu/صفحہ-3.png": b"\x89PNG\r\n\x1a\n" + "uni-rag fake اردو صفحہ 3".encode(),
+}
+IMAGE_CONTENT_TYPES: dict[str, str] = {key: "image/png" for key in IMAGE_BYTES}
+
 __all__ = [
     "ABSTAIN_ANSWER",
     "CORPUS",
     "EN_ANSWER",
     "FALLBACK_ANSWER",
     "IMAGE_ANSWER",
+    "IMAGE_BYTES",
+    "IMAGE_CONTENT_TYPES",
+    "LAST_CRAWLED",
     "QUERY_ABSTAIN",
     "QUERY_EN",
     "QUERY_IMAGE",
     "QUERY_ROMAN_UR",
     "QUERY_UR",
+    "REAL_BACKEND_ANSWER",
     "ROMAN_UR_ANSWER",
     "UR_ANSWER",
 ]

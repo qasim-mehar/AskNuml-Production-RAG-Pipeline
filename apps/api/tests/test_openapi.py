@@ -30,6 +30,20 @@ def test_openapi_schemas_come_from_frozen_core_models(client: TestClient) -> Non
     assert query_schema["required"] == ["query_id", "text", "language"]
 
 
+def test_openapi_documents_new_routes_and_feedback_schema(client: TestClient) -> None:
+    """Lane H generates its client from this artifact (L12)."""
+    schema = client.get("/openapi.json").json()
+
+    assert "/api/v1/query" in schema["paths"]
+    assert "/api/v1/query/stream" in schema["paths"]
+    assert "/api/v1/feedback" in schema["paths"]
+    assert "/api/images/{ref_id}" in schema["paths"]
+    assert schema["paths"]["/api/v1/feedback"]["post"]["responses"]["202"]["description"]
+    feedback = schema["components"]["schemas"]["FeedbackRequest"]
+    assert set(feedback["properties"]) == {"answer_id", "sentiment", "reason", "query_id"}
+    assert feedback["required"] == ["answer_id", "sentiment"]
+
+
 def test_openapi_documents_query_key_auth(client: TestClient) -> None:
     """The auth stub is visible to Lane H regardless of enforcement."""
     schema = client.get("/openapi.json").json()
