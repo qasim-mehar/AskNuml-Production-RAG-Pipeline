@@ -1,0 +1,4 @@
+# Fixture robots.txt — Lane A unit tests.
+User-agent: *
+Disallow: /private/
+Allow: /
