@@ -18,11 +18,16 @@ from typing import cast
 
 import httpx
 import pytest
+from minio import Minio
 from qdrant_client import QdrantClient
 
-from tests.contracts.port_contracts import assert_vector_store_contract
+from tests.contracts.port_contracts import (
+    assert_object_store_contract,
+    assert_vector_store_contract,
+)
 from tests.factories import document as sample_document
 from tests.integration.composition import build_context, build_fetcher, build_parser, fixture_path
+from tests.integration.doubles import MemoryMinioClient
 from tests.integration.provenance import attach_provenance
 from tests.integration.selection import AdapterSelection
 from uni_rag_core import (
@@ -31,11 +36,13 @@ from uni_rag_core import (
     Document,
     ImageRef,
     Language,
+    ObjectStore,
     Query,
     Settings,
     SystemClock,
     VectorStore,
 )
+from uni_rag_indexing.adapters.minio_object_store import MinioObjectStore
 from uni_rag_indexing.adapters.qdrant_vector_store import QdrantVectorStore
 from uni_rag_ingestion.chunking.domain.model import Block, BlockKind
 from uni_rag_ingestion.chunking.domain.model import ParsedDocument as ChunkableDocument
@@ -198,6 +205,15 @@ def test_parser_swap_uses_docling_adapter(integration_settings: Settings) -> Non
     assert isinstance(parser, DoclingParser)
     parsed = parser.parse(_FIXTURE_DIR / "content-v1.html")
     assert parsed.pages and parsed.pages[0].text
+
+
+def test_object_store_swap_uses_minio_adapter(integration_settings: Settings) -> None:
+    """Lane D's real MinIO adapter passes the shared ObjectStore contract."""
+    selection = AdapterSelection.from_settings(integration_settings)
+    assert selection.object_store == "minio"
+    store = MinioObjectStore(cast(Minio, MemoryMinioClient()), bucket="uni-rag", host="minio")
+    assert isinstance(store, ObjectStore)
+    assert_object_store_contract(store)
 
 
 def test_vector_store_swap_uses_qdrant_adapter(integration_settings: Settings) -> None:

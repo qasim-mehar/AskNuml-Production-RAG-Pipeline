@@ -56,6 +56,8 @@ class AdapterSelection:
             chunking="strategies",
             # swap 4: vector store -> Lane D's Qdrant adapter (compose endpoint)
             vector_store="qdrant",
+            # swap 5: object store -> Lane D's MinIO adapter (compose endpoint)
+            object_store="minio",
             live_providers=live,
         )
 
