@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "golden_id": "synthetic-oracle-v1",
+  "description": "Hand-computable four-question oracle fixture. Not a quality claim.",
+  "records": [
+    {
+      "id": "s1",
+      "language": "en",
+      "query": "alpha query",
+      "expected_filters": {"doc_id": "doc-synthetic"},
+      "expected_chunk_ids": ["a", "b"],
+      "expected_answer_gist": "Alpha evidence",
+      "expected_abstain": false
+    },
+    {
+      "id": "s2",
+      "language": "ur",
+      "query": "beta سوال",
+      "expected_filters": {},
+      "expected_chunk_ids": [],
+      "expected_answer_gist": "Beta evidence",
+      "expected_abstain": true
+    },
+    {
+      "id": "s3",
+      "language": "roman_urdu",
+      "query": "gamma sawal",
+      "expected_filters": {"doc_id": "doc-synthetic"},
+      "expected_chunk_ids": ["d"],
+      "expected_answer_gist": "Gamma evidence",
+      "expected_abstain": false
+    },
+    {
+      "id": "s4",
+      "language": "en",
+      "query": "delta query",
+      "expected_filters": {"doc_id": "doc-synthetic"},
+      "expected_chunk_ids": ["e"],
+      "expected_answer_gist": "Delta evidence",
+      "expected_abstain": false
+    }
+  ]
+}
