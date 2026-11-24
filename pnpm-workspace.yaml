@@ -1,0 +1,6 @@
+packages:
+  - "apps/web"
+
+# pnpm 12 requires an explicit allowlist for dependency build scripts.
+allowBuilds:
+  esbuild: true

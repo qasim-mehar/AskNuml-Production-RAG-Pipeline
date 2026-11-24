@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "uni-rag-retrieval"
+version = "0.1.0"
+description = "Query routing, search, reranking, and answer synthesis for uni-rag."
+requires-python = ">=3.11"
+dependencies = [
+    "uni-rag-core>=0.1.0",
+]
+
+[tool.uv.sources]
+uni-rag-core = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/uni_rag_retrieval"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

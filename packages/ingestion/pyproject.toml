@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "uni-rag-ingestion"
+version = "0.1.0"
+description = "Crawling, parsing, chunking, and enrichment for the uni-rag pipeline."
+requires-python = ">=3.11"
+dependencies = [
+    "uni-rag-core>=0.1.0",
+]
+
+[tool.uv.sources]
+uni-rag-core = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/uni_rag_ingestion"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

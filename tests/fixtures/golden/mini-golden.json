@@ -1,0 +1,82 @@
+[
+  {
+    "id": "g01",
+    "query": "Who is the instructor for CS-101?",
+    "language": "en",
+    "expected_doc_ids": ["doc-cs101-outline"],
+    "expected_page": 1,
+    "expected_answer_snippet": "Dr. Ayesha Khan"
+  },
+  {
+    "id": "g02",
+    "query": "How many credits is CS-101 worth?",
+    "language": "en",
+    "expected_doc_ids": ["doc-cs101-outline"],
+    "expected_page": 1,
+    "expected_answer_snippet": "4 credits"
+  },
+  {
+    "id": "g03",
+    "query": "When is the CS-101 midterm exam?",
+    "language": "en",
+    "expected_doc_ids": ["doc-announcements-2026"],
+    "expected_page": 1,
+    "expected_answer_snippet": "October 17, 2026"
+  },
+  {
+    "id": "g04",
+    "query": "What are the research interests of the computer science faculty?",
+    "language": "en",
+    "expected_doc_ids": ["doc-faculty-directory"],
+    "expected_page": 1,
+    "expected_answer_snippet": "information retrieval and NLP"
+  },
+  {
+    "id": "g05",
+    "query": "CS-101 کے انسٹرکٹر کون ہیں؟",
+    "language": "ur",
+    "expected_doc_ids": ["doc-cs101-outline"],
+    "expected_page": 1,
+    "expected_answer_snippet": "ڈاکٹر عائشہ خان"
+  },
+  {
+    "id": "g06",
+    "query": "CS-101 کتنے کریڈٹس کا کورس ہے؟",
+    "language": "ur",
+    "expected_doc_ids": ["doc-cs101-outline"],
+    "expected_page": 1,
+    "expected_answer_snippet": "4 کریڈٹس"
+  },
+  {
+    "id": "g07",
+    "query": "CS-101 ka instructor kaun hai?",
+    "language": "roman_urdu",
+    "expected_doc_ids": ["doc-cs101-outline"],
+    "expected_page": 1,
+    "expected_answer_snippet": "Dr. Ayesha Khan"
+  },
+  {
+    "id": "g08",
+    "query": "CS-101 ka midterm kab hai?",
+    "language": "roman_urdu",
+    "expected_doc_ids": ["doc-announcements-2026"],
+    "expected_page": 1,
+    "expected_answer_snippet": "17 October 2026"
+  },
+  {
+    "id": "g09",
+    "query": "What are the learning outcomes of CS-101?",
+    "language": "en",
+    "expected_doc_ids": ["doc-cs101-outline"],
+    "expected_page": 1,
+    "expected_answer_snippet": "Write and debug programs in Python"
+  },
+  {
+    "id": "g10",
+    "query": "When does new student orientation begin?",
+    "language": "en",
+    "expected_doc_ids": ["doc-announcements-2026"],
+    "expected_page": 1,
+    "expected_answer_snippet": "August 24, 2026"
+  }
+]

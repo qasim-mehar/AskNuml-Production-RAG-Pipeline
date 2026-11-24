@@ -1,0 +1,77 @@
+[importlinter]
+# import-linter >=2.17 expects the plural key for a multiline list of roots.
+root_packages =
+    uni_rag_core
+    uni_rag_ingestion
+    uni_rag_indexing
+    uni_rag_retrieval
+    uni_rag_eval
+    uni_rag_api
+
+[importlinter:contract:core-is-independent]
+name = Core is independent of every other package
+type = forbidden
+source_modules =
+    uni_rag_core
+forbidden_modules =
+    uni_rag_ingestion
+    uni_rag_indexing
+    uni_rag_retrieval
+    uni_rag_eval
+    uni_rag_api
+
+[importlinter:contract:apps-are-leaves]
+name = Apps are not imported by packages
+type = forbidden
+source_modules =
+    uni_rag_core
+    uni_rag_ingestion
+    uni_rag_indexing
+    uni_rag_retrieval
+    uni_rag_eval
+forbidden_modules =
+    uni_rag_api
+
+[importlinter:contract:domain-has-no-io]
+name = Domain modules never import adapters
+type = forbidden
+source_modules =
+    uni_rag_ingestion.domain
+    uni_rag_ingestion.crawler.domain
+    uni_rag_ingestion.parsers.domain
+    uni_rag_ingestion.chunking.domain
+    uni_rag_ingestion.enrichment.domain
+    uni_rag_indexing.domain
+    uni_rag_indexing.qdrant.domain
+    uni_rag_indexing.postgres.domain
+    uni_rag_indexing.objectstore.domain
+    uni_rag_retrieval.domain
+    uni_rag_retrieval.router.domain
+    uni_rag_retrieval.search.domain
+    uni_rag_retrieval.rerank.domain
+    uni_rag_retrieval.answer.domain
+    uni_rag_eval.domain
+    uni_rag_eval.metrics.domain
+    uni_rag_eval.golden.domain
+    uni_rag_eval.ablation.domain
+    uni_rag_eval.runner.domain
+forbidden_modules =
+    uni_rag_ingestion.adapters
+    uni_rag_ingestion.crawler.adapters
+    uni_rag_ingestion.parsers.adapters
+    uni_rag_ingestion.chunking.adapters
+    uni_rag_ingestion.enrichment.adapters
+    uni_rag_indexing.adapters
+    uni_rag_indexing.qdrant.adapters
+    uni_rag_indexing.postgres.adapters
+    uni_rag_indexing.objectstore.adapters
+    uni_rag_retrieval.adapters
+    uni_rag_retrieval.router.adapters
+    uni_rag_retrieval.search.adapters
+    uni_rag_retrieval.rerank.adapters
+    uni_rag_retrieval.answer.adapters
+    uni_rag_eval.adapters
+    uni_rag_eval.metrics.adapters
+    uni_rag_eval.golden.adapters
+    uni_rag_eval.ablation.adapters
+    uni_rag_eval.runner.adapters

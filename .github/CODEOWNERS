@@ -1,0 +1,30 @@
+# Lane ownership (L14). Last matching pattern wins.
+# Lane 0 — foundation and frozen contracts.
+/                       @uni-rag/lane-0
+/AGENT.md               @uni-rag/lane-0
+/README.md              @uni-rag/lane-0
+/pyproject.toml         @uni-rag/lane-0
+/pnpm-workspace.yaml    @uni-rag/lane-0
+/.importlinter          @uni-rag/lane-0
+/.env.example           @uni-rag/lane-0
+/.pre-commit-config.yaml @uni-rag/lane-0
+/Makefile               @uni-rag/lane-0
+/.github/               @uni-rag/lane-0
+/docs/                  @uni-rag/lane-0
+/packages/core/         @uni-rag/lane-0
+/infra/                 @uni-rag/lane-0
+/tests/                 @uni-rag/lane-0
+/scripts/               @uni-rag/lane-0
+
+# Lanes A–H. More specific patterns below override the Lane 0 defaults.
+/packages/ingestion/crawler/     @uni-rag/lane-a
+/packages/ingestion/parsers/     @uni-rag/lane-b
+/packages/ingestion/chunking/    @uni-rag/lane-c
+/packages/ingestion/enrichment/  @uni-rag/lane-c
+/packages/indexing/              @uni-rag/lane-d
+/infra/migrations/               @uni-rag/lane-d
+/packages/retrieval/             @uni-rag/lane-e
+/packages/eval/                  @uni-rag/lane-f
+/eval/                           @uni-rag/lane-f
+/apps/api/                       @uni-rag/lane-g
+/apps/web/                       @uni-rag/lane-h

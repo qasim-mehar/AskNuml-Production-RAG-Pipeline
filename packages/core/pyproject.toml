@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "uni-rag-core"
+version = "0.1.0"
+description = "Shared kernel and frozen contracts for uni-rag"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.9",
+    "pydantic-settings>=2.5",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/uni_rag_core"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

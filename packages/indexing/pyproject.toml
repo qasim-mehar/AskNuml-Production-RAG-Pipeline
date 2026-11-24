@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "uni-rag-indexing"
+version = "0.1.0"
+description = "Vector, relational, and object-storage indexing for uni-rag."
+requires-python = ">=3.11"
+dependencies = [
+    "uni-rag-core>=0.1.0",
+]
+
+[tool.uv.sources]
+uni-rag-core = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/uni_rag_indexing"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

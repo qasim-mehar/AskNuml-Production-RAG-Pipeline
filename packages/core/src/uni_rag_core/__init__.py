@@ -1,0 +1,87 @@
+"""uni-rag shared kernel: schemas, ports, fakes, config, logging and errors."""
+
+from uni_rag_core.config import Settings, get_settings, load_settings
+from uni_rag_core.errors import (
+    AbstentionError,
+    ConfigError,
+    FetchError,
+    ParseError,
+    PortError,
+    RetrievalError,
+    StorageError,
+    UniRagError,
+    ValidationError,
+)
+from uni_rag_core.fakes import (
+    FakeClock,
+    FakeEmbedder,
+    FakeFetcher,
+    FakeLLM,
+    FakeObjectStore,
+    FakeReranker,
+    FakeVectorStore,
+)
+from uni_rag_core.logging import configure_logging, current_trace_id, get_logger, trace
+from uni_rag_core.ports import LLM, Clock, Embedder, Fetcher, ObjectStore, Reranker, VectorStore
+from uni_rag_core.schemas import (
+    Answer,
+    Chunk,
+    Citation,
+    DocType,
+    Document,
+    FetchResult,
+    ImageRef,
+    Language,
+    PastPaperQuestion,
+    Query,
+    ScoredChunk,
+    VectorHit,
+)
+
+__version__ = "0.1.0"
+
+__all__ = [
+    "AbstentionError",
+    "Answer",
+    "Chunk",
+    "Citation",
+    "Clock",
+    "ConfigError",
+    "DocType",
+    "Document",
+    "Embedder",
+    "FetchError",
+    "FakeClock",
+    "FakeEmbedder",
+    "FakeFetcher",
+    "FakeLLM",
+    "FakeObjectStore",
+    "FakeReranker",
+    "FakeVectorStore",
+    "FetchResult",
+    "Fetcher",
+    "ImageRef",
+    "LLM",
+    "Language",
+    "ObjectStore",
+    "ParseError",
+    "PastPaperQuestion",
+    "PortError",
+    "Query",
+    "Reranker",
+    "RetrievalError",
+    "ScoredChunk",
+    "Settings",
+    "StorageError",
+    "UniRagError",
+    "ValidationError",
+    "VectorHit",
+    "VectorStore",
+    "__version__",
+    "configure_logging",
+    "current_trace_id",
+    "get_logger",
+    "get_settings",
+    "load_settings",
+    "trace",
+]
