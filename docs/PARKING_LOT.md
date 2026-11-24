@@ -25,3 +25,25 @@ promoted by an ADR (L1).
 
 Promotion of any item into scope requires an ADR. This campaign's promotions are
 recorded in ADR 0002 (Lane E), ADR 0003 (Lanes A and B) and ADR 0004 (Lane H).
+
+## Merge-wave handoff lines (2026-11-24)
+
+- [2026-11-24] Lane A: Live crawl smoke script (opt-in, after a live-crawl ADR).
+- [2026-11-24] Lane A: Crawl4AI integration.
+- [2026-11-24] Lane A: Sitemap discovery.
+- [2026-11-24] Lane A: Postgres crawl-state persistence.
+- [2026-11-24] Lane B: MinerU adapter wiring (no installable wheel offline; interface ready; transcription fallback shipped).
+- [2026-11-24] Lane B: OCR beyond fixture transcription.
+- [2026-11-24] Lane B: Live-network parsing.
+- [2026-11-24] Lane B: Parsed-record persistence in Postgres/Qdrant.
+- [2026-11-24] Lane B: Real page scans replacing placeholder images.
+- [2026-11-24] Lane E: LangGraph nodes one at a time, each with its measured eval row; retry_rewrite first.
+- [2026-11-24] Lane E: Grounded-citation-usage check.
+- [2026-11-24] Lane E: Narrow provider adapters to SDK exception types (replace except Exception).
+- [2026-11-24] Lane E: Live provider comparison run (opt-in, never CI).
+- [2026-11-24] Lane F: Real feedback-to-golden ingestion.
+- [2026-11-24] Lane F: Opt-in real-LLM faithfulness judge (never CI).
+- [2026-11-24] Lane G: Real auth providers beyond the API-key stub.
+- [2026-11-24] Lane H: Scaling, deployment and horizontal concerns.
+- [2026-11-24] Lane D: Document-level soft-delete method in the metadata store.
+- [2026-11-24] Lane 0: Windows make parity (run recipes directly when the binary is absent).

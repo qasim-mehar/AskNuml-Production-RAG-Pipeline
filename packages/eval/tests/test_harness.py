@@ -9,7 +9,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from helpers import StubRetriever, load_fixture
+from eval_helpers import StubRetriever, load_fixture
 
 from uni_rag_core import FakeClock, Language, Query
 from uni_rag_eval.domain.golden import (

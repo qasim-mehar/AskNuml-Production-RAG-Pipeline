@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from helpers import load_fixture
+from eval_helpers import load_fixture
 
 from uni_rag_core.errors import ValidationError
 from uni_rag_eval.domain.golden import (

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from helpers import StubRetriever, load_fixture
+from eval_helpers import StubRetriever, load_fixture
 
 from uni_rag_eval.domain.golden import load_golden_set
 from uni_rag_eval.domain.judge import FaithfulnessJudge, Judgment

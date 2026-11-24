@@ -33,6 +33,8 @@ jobs:
         run: make test
       - name: Gate
         run: make gate
+      - name: Eval regression gate
+        run: uv run pytest -m gate packages/eval/tests
 
   web:
     runs-on: ubuntu-latest

@@ -59,9 +59,24 @@ module = ["importlinter.*", "alembic.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "packages"]
-pythonpath = [".", "packages/core/src", "packages/ingestion/src", "packages/indexing/src", "packages/retrieval/src", "packages/eval/src", "apps/api/src"]
-addopts = "-q --strict-markers"
+testpaths = ["tests", "packages", "apps/api/tests"]
+pythonpath = [
+  ".",
+  "packages/core/src",
+  "packages/ingestion/src",
+  "packages/indexing/src",
+  "packages/retrieval/src",
+  "packages/eval/src",
+  "apps/api/src",
+  # Lane test dirs are explicit: with --import-mode=importlib pytest no longer
+  # prepends each test dir to sys.path, so bare `helpers` / `conftest` / `_helpers`
+  # imports must resolve deterministically. `eval_helpers` is uniquely named so
+  # it cannot shadow the API lane's `helpers` (collection fix, not a mask).
+  "apps/api/tests",
+  "packages/eval/tests",
+  "packages/ingestion/parsers/tests",
+]
+addopts = "-q --strict-markers --import-mode=importlib"
 
 [tool.coverage.run]
 source = ["uni_rag_core"]

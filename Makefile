@@ -23,6 +23,7 @@ test:
 gate:
 	$(PYTHON) lint-imports
 	$(PYTHON) pytest tests/contracts
+	$(PYTHON) pytest -m gate packages/eval/tests
 	$(PYTHON) pytest --cov=uni_rag_core --cov-report=term-missing --cov-fail-under=80
 
 up:
