@@ -2,50 +2,55 @@
 
 You are working in the uni-rag monorepo as lane D (Indexing and storage).
 
-1. **Role and context anchors.** Read these anchors before doing anything else;
-   do not restate them here, just use them:
+1. CONTEXT ANCHORS
+   Read these before doing anything else; use them, do not restate them:
    - `AGENT.md` (binding laws, Definition of Done, lane model)
    - `docs/ARCHITECTURE.md` (system map and data flow)
-   - `docs/AGENT_ONBOARDING.md` (this workflow)
+   - `docs/AGENT_ONBOARDING.md` (workflow and lane briefs)
    - `docs/PROGRESS.md` (lane board)
    - `docs/adr/` (decision records)
 
-2. **Mission and milestone.** Deliver exactly this milestone: typed adapters for
-   `VectorStore` and `ObjectStore` with Qdrant/Postgres/Minio client interfaces,
-   each constructed from `Settings` and passing the executable port contracts
-   in `tests/contracts/port_contracts.py` with in-memory backends first. Keep the
+2. MISSION
+   Deliver exactly this milestone: typed adapters for `VectorStore` and
+   `ObjectStore` with Qdrant/Postgres/Minio client interfaces, each constructed
+   from `Settings` and passing the executable port contracts in
+   `tests/contracts/port_contracts.py` with in-memory backends first. Keep the
    Alembic skeleton in `infra/migrations/` intact; add real migrations only when
-   a concrete table is needed. No live infrastructure is required to test.
+   a concrete table is needed. No live infrastructure is required to test. Keep
+   all provider code out of indexing: the `google-genai` and second-provider
+   adapters belong to Lane E (ADR 0002).
 
-3. **Ownership and boundaries.** You own ONLY these dirs:
-   `packages/indexing/`, `infra/migrations/`.
-   Forbidden (read-only):
-   - `packages/core/` (Lane 0 only)
-   - `infra/docker-compose.yml`, `infra/docker/`, all other `infra/` files,
-     `packages/ingestion/`, `packages/retrieval/`, `packages/eval/`, `apps/`,
-     `eval/`, root config and all other lanes' dirs.
-   Do not create or edit files anywhere else.
+3. LAW COMPLIANCE
+   Laws in scope: L2, L3, L4, L6, L8, L9, L12. All lanes are always bound by
+   L1, L5, L10, L11 and L12. Name each law you touch. Read every connection
+   value from core `Settings`; no `os.environ` (L8).
 
-4. **Ports and contracts.** The core ports/protocols you implement or consume:
-   - Implement: `VectorStore`, `ObjectStore`.
-   - Consume: `Settings` (`get_settings()`), `Clock`, `Chunk`, `VectorHit`,
-     `StorageError`.
-   Schema names you must honour: `Chunk`, `VectorHit`, `ImageRef`. Use them as-is.
-   Adapters live in `adapters/`; domain logic stays free of I/O (L2).
+4. FILE PLAN
+   You own only: `packages/indexing/`, `infra/migrations/`. Read-only:
+   `packages/core/` (Lane 0) and `infra/docker-compose.yml`, `infra/docker/`,
+   all other `infra/` files, `packages/ingestion/`, `packages/retrieval/`,
+   `packages/eval/`, `apps/`, `eval/`, root config and all other lanes' dirs.
+   Consume the frozen core ports and schemas as-is (L3); define any new Protocol
+   domain-local, never in core without a CONTRACT-CHANGE PR and ADR. Create or
+   edit nothing else. Implement `VectorStore` and `ObjectStore`; consume
+   `Settings` (`get_settings()`), `Clock`, `Chunk`, `VectorHit` and
+   `StorageError`. Adapters live in `adapters/`; domain logic stays free of I/O
+   (L2).
 
-5. **Fakes and fixtures available.** While other lanes are blocked, use these
-   fakes and fixture files:
-   - Fakes: `FakeVectorStore`, `FakeObjectStore`, `FakeClock`, `FakeEmbedder`
-     (to generate deterministic vectors for upsert).
-   - Fixtures: `tests/fixtures/golden/mini-golden.json`,
-     `tests/fixtures/html/*.html`.
-   All fakes are deterministic (L4). Do not reach for real network or models.
+5. TEST PLAN
+   Write fixtures first, then behaviour tests. Fakes: `FakeVectorStore`,
+   `FakeObjectStore`, `FakeClock`, `FakeEmbedder` (to generate deterministic
+   vectors for upsert). Fixtures:
+   `tests/fixtures/golden/mini-golden.json`, `tests/fixtures/html/*.html`.
+   Fakes are deterministic (L4). Unit tests touch no real network, LLM or paid
+   API.
 
-6. **Laws in scope.** These laws apply to your work: L2, L3, L4, L6, L8, L9,
-   L12. All lanes are always bound by L1, L5, L10, L11 and L12 unless stated.
-   Read every connection value from core `Settings`; no `os.environ` (L8).
+6. QUALITY PASS (before gates)
+   Spawn a fresh review subagent with your diff. Fix what it finds or log it in
+   the handoff.
 
-7. **Definition of done and green gates.** Run and pass exactly:
+7. GREEN GATES + COMMIT
+   Run and pass exactly:
    ```
    uv run ruff check packages/indexing
    uv run ruff format --check packages/indexing
@@ -53,14 +58,14 @@ You are working in the uni-rag monorepo as lane D (Indexing and storage).
    uv run pytest packages/indexing/tests tests/contracts
    uv run lint-imports
    ```
-   Then confirm `make gate` is green before handoff. Docs inside your owned
-   directories must agree with code, and no parking-lot work. Lane 0 updates
-   `docs/PROGRESS.md` on merge — do not edit it.
+   Then confirm `make gate` is green, and commit with the campaign tag from
+   `AGENT.md`. Lane 0 updates `docs/PROGRESS.md` on merge; do not edit it.
 
-8. **Handoff.** Report back in at most 25 lines, in this format:
+8. HANDOFF
+   Report in at most 25 lines:
    - Lane / milestone:
    - Files created or changed (paths):
-   - Ports implemented/consumed:
+   - Ports implemented or consumed:
    - Gates run and result:
    - Contract issues / ADRs raised:
    - Blocked by / next lane handoff:

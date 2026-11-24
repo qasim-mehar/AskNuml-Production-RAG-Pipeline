@@ -1,5 +1,8 @@
 [importlinter]
 # import-linter >=2.17 expects the plural key for a multiline list of roots.
+# L15: required so external frameworks (langchain, langgraph, google) can be
+# named as forbidden modules. External packages must be named at top level.
+include_external_packages = True
 root_packages =
     uni_rag_core
     uni_rag_ingestion
@@ -75,3 +78,50 @@ forbidden_modules =
     uni_rag_eval.golden.adapters
     uni_rag_eval.ablation.adapters
     uni_rag_eval.runner.adapters
+
+[importlinter:contract:framework-is-contained]
+# L15: LangChain, LangGraph and google-genai are allowed only inside the
+# planned retrieval graph/ and provider-adapters/ directories. Every other
+# package and zone stays framework-free. "google" is the top-level external
+# package name import-linter requires for the google-genai SDK (google.genai).
+name = L15 - frameworks are confined to retrieval graph and adapters
+type = forbidden
+source_modules =
+    uni_rag_core
+    uni_rag_ingestion
+    uni_rag_indexing
+    uni_rag_retrieval
+    uni_rag_eval
+    uni_rag_api
+forbidden_modules =
+    langchain
+    langgraph
+    google
+# "**" is required: "*" only matches one module level, while the planned
+# graph/ and adapters/ trees will nest nodes and provider subpackages.
+ignore_imports =
+    uni_rag_retrieval.adapters -> langchain
+    uni_rag_retrieval.adapters -> langgraph
+    uni_rag_retrieval.adapters -> google
+    uni_rag_retrieval.adapters.** -> langchain
+    uni_rag_retrieval.adapters.** -> langgraph
+    uni_rag_retrieval.adapters.** -> google
+    uni_rag_retrieval.adapters -> langchain.**
+    uni_rag_retrieval.adapters -> langgraph.**
+    uni_rag_retrieval.adapters -> google.**
+    uni_rag_retrieval.adapters.** -> langchain.**
+    uni_rag_retrieval.adapters.** -> langgraph.**
+    uni_rag_retrieval.adapters.** -> google.**
+    uni_rag_retrieval.graph -> langchain
+    uni_rag_retrieval.graph -> langgraph
+    uni_rag_retrieval.graph -> google
+    uni_rag_retrieval.graph.** -> langchain
+    uni_rag_retrieval.graph.** -> langgraph
+    uni_rag_retrieval.graph.** -> google
+    uni_rag_retrieval.graph -> langchain.**
+    uni_rag_retrieval.graph -> langgraph.**
+    uni_rag_retrieval.graph -> google.**
+    uni_rag_retrieval.graph.** -> langchain.**
+    uni_rag_retrieval.graph.** -> langgraph.**
+    uni_rag_retrieval.graph.** -> google.**
+unmatched_ignore_imports_alerting = none

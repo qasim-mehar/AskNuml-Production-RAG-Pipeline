@@ -1,20 +1,22 @@
 # Parking Lot
 
-Out-of-scope items for the current milestone. Do not implement these.
+Out-of-scope items for the current milestone. Do not implement these unless
+promoted by an ADR (L1).
 
-- Real crawling logic (network fetching at scale) — fakes and fixtures only for now.
-- Real parsing logic (PDF/HTML page extraction) — fixture-driven only.
-- Real embedding logic — deterministic fake embedders only.
-- Real LLM logic — deterministic fake LLMs only.
+- Real crawling logic at scale against the live university site — still parked. A fixture/local-test-server HTTP `Fetcher` adapter for Lane A is promoted by ADR 0003.
+- Real parsing logic (PDF/HTML page extraction) — fixture-driven Docling (digital) and MinerU (scanned) adapters for Lane B promoted by ADR 0003; no live site.
+- Real embedding logic — deterministic fake embedders remain the default; real `google-genai` and one second provider adapter for Lane E promoted by ADR 0002.
+- Real LLM logic — promoted to Lane E by ADR 0002: opt-in via settings (setting pending a separate Lane 0 CONTRACT-CHANGE PR), never in CI; fakes remain the default (L17).
 - ColPali (late-interaction visual retrieval) — future work.
 - Voice input/output.
 - Mobile app.
 - Gamification.
 - Auth providers beyond a stub.
-- UI beyond a health page.
+- UI beyond a health page — promoted to Lane H by ADR 0004 (cited chat with streaming, past-paper finder, feedback) against the frozen `Query`/`Answer` schemas and a mocked API until Lane G's OpenAPI lands.
 - Performance tuning.
-- Stale spec fallback file in `docs/` duplicates `AGENT.md` and omits L15-L17; Lane 0 to delete it.
-- L15 needs a new framework import-linter contract in `.importlinter`; Lane 0 to add it.
-- Regenerate `docs/lanes/*.md` prompts from the new eight-section template and add L15-L17 to the Lane E/F law lists; Lane 0 to do it.
+- [2026-11-24][done] Lane 0: stale spec fallback file `docs/AGENT.md.spec` deleted (it duplicated `AGENT.md` and omitted L15–L17).
+- [2026-11-24][done] Lane 0: L15 framework import-linter contract added to `.importlinter`, covering planned `graph/` and `adapters/` as allowed paths.
+- [2026-11-24][done] Lane 0: `docs/lanes/LANE-A.md` … `LANE-H.md` regenerated from the eight-section template in `docs/AGENT_ONBOARDING.md` §5; L15–L17 added to the Lane E/F law lists.
 
-Promotion of any item into scope requires an ADR.
+Promotion of any item into scope requires an ADR. This campaign's promotions are
+recorded in ADR 0002 (Lane E), ADR 0003 (Lanes A and B) and ADR 0004 (Lane H).

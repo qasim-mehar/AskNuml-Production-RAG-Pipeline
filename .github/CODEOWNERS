@@ -1,6 +1,6 @@
 # Lane ownership (L14). Last matching pattern wins.
 # Lane 0 — foundation and frozen contracts.
-/                       @uni-rag/lane-0
+*                       @uni-rag/lane-0
 /AGENT.md               @uni-rag/lane-0
 /README.md              @uni-rag/lane-0
 /pyproject.toml         @uni-rag/lane-0
