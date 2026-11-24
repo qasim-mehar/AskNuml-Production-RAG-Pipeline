@@ -1,5 +1,7 @@
 """Settings contract: one module, nested sections, fail-fast, live-flag safety."""
 
+from pathlib import Path
+
 import pytest
 from pydantic import BaseModel
 
@@ -26,7 +28,8 @@ REQUIRED_ENV = {
 
 
 def _all_env_names() -> list[str]:
-    names = [f"UNI_RAG_{name.upper()}" for name in Settings.model_fields]
+    names = ["CI"]
+    names.extend(f"UNI_RAG_{name.upper()}" for name in Settings.model_fields)
     for section, section_type in SECTION_TYPES.items():
         prefix = SECTION_ENV_PREFIXES[section]
         names.extend(f"{prefix}{name.upper()}" for name in section_type.model_fields)
@@ -52,9 +55,13 @@ def test_nested_sections_live_in_the_single_settings_module(clean_env: pytest.Mo
 
 def test_api_section_keeps_g_defaults(clean_env: pytest.MonkeyPatch) -> None:
     api = load_settings().api
+    assert api.api_version == "v1"
+    assert api.log_level == "INFO"
     assert api.auth_enabled is False
-    assert api.api_key == "local-dev-key"
+    assert api.api_key.get_secret_value() == "local-dev-key"
     assert api.rate_limit_capacity == 30
+    assert api.rate_limit_refill_per_second == 1.0
+    assert api.rate_limit_exempt_paths[:2] == ("/health/live", "/health/ready")
     assert api.max_top_k == 20
     assert api.trace_header == "X-Trace-Id"
     assert api.trace_header_enabled is True
@@ -88,10 +95,16 @@ def test_live_providers_default_off_and_keys_are_never_logged(
     clean_env: pytest.MonkeyPatch,
 ) -> None:
     clean_env.setenv("UNI_RAG_PROVIDERS_GOOGLE_API_KEY", "do-not-log-this-key")
-    providers = load_settings().providers
+    clean_env.setenv("UNI_RAG_PROVIDERS_OPENAI_API_KEY", "also-do-not-log")
+    settings = load_settings()
+    providers = settings.providers
     assert providers.live_enabled is False
     assert "do-not-log-this-key" not in providers.model_dump_json()
     assert "do-not-log-this-key" not in repr(providers)
+    assert "also-do-not-log" not in settings.model_dump_json()
+    assert "also-do-not-log" not in repr(settings)
+    assert settings.api.api_key.get_secret_value() == "local-dev-key"
+    assert "local-dev-key" not in settings.model_dump_json()
 
 
 def test_live_providers_cannot_be_enabled_in_ci(clean_env: pytest.MonkeyPatch) -> None:
@@ -99,6 +112,21 @@ def test_live_providers_cannot_be_enabled_in_ci(clean_env: pytest.MonkeyPatch) -
     clean_env.setenv("UNI_RAG_PROVIDERS_LIVE_ENABLED", "true")
     with pytest.raises(ConfigError, match="Invalid settings"):
         load_settings()
+
+
+def test_github_ci_flag_also_blocks_live_providers(clean_env: pytest.MonkeyPatch) -> None:
+    clean_env.setenv("CI", "true")
+    clean_env.setenv("UNI_RAG_PROVIDERS_LIVE_ENABLED", "true")
+    with pytest.raises(ConfigError, match="Invalid settings"):
+        load_settings()
+
+
+def test_legacy_api_keys_are_read_from_dotenv(
+    clean_env: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    (tmp_path / ".env").write_text("UNI_RAG_API_RATE_LIMIT_CAPACITY=7\n", encoding="utf-8")
+    clean_env.chdir(tmp_path)
+    assert load_settings().api.rate_limit_capacity == 7
 
 
 @pytest.mark.parametrize(
@@ -109,6 +137,7 @@ def test_live_providers_cannot_be_enabled_in_ci(clean_env: pytest.MonkeyPatch) -
         ("UNI_RAG_CRAWLER_REQUESTS_PER_SECOND", "0"),
         ("UNI_RAG_CRAWLER_MAX_DEPTH", "-1"),
         ("UNI_RAG_CRAWLER_SEEDS", '["ftp://example.edu/"]'),
+        ("UNI_RAG_CRAWLER_SEEDS", "[]"),
         ("UNI_RAG_CRAWLER_USER_AGENT", "   "),
     ],
 )

@@ -23,15 +23,20 @@ suppressions because the core wheel shipped no `py.typed` marker.
   `requests_per_second`, `user_agent`. A deletes `CrawlerConfig` at migration.
 - Add `Settings.providers: ProvidersSection` with `live_enabled: bool = False`
   and `SecretStr` provider keys. The flag defaults off and a validator rejects
-  enabling it when `environment` is `ci` or `test`; keys cannot appear in
-  `repr` or `model_dump_json`. Fakes remain the default (L4, ADR 0002).
+  enabling it when `UNI_RAG_ENVIRONMENT` is `ci`/`test` **or** CI's own
+  `CI=true` is set. Provider and API keys are `SecretStr`, so they cannot appear
+  in `repr` or `model_dump_json`; G's auth dependency calls `get_secret_value()`
+  at migration. Fakes remain the default (L4, ADR 0002).
 - **Chosen env form:** the nested sections read their **legacy
-  `UNI_RAG_<SECTION>_<FIELD>` keys** (e.g. `UNI_RAG_API_RATE_LIMIT_CAPACITY`).
+  `UNI_RAG_<SECTION>_<FIELD>` keys** (e.g. `UNI_RAG_API_RATE_LIMIT_CAPACITY`)
+  from both `.env` and the process environment (process wins), case-insensitively.
   No deployment must rename a variable. The nested
   `UNI_RAG_<SECTION>__<FIELD>` form is not the documented contract.
 - Required infrastructure (`qdrant_url`, `postgres_dsn`, `minio_endpoint`) is
   unchanged and still fails fast. New sections have safe defaults and fail fast
   on invalid values rather than on absence, so existing loads keep working.
+  An explicitly supplied empty crawler seed list is invalid (as in A's
+  `CrawlerConfig`); an omitted list defaults to `()`.
 - Ship `SystemClock` (datetime-based, framework-free) in core next to
   `FakeClock`. Tests keep injecting `FakeClock`; production injects
   `SystemClock`. D/G retire their local clock module at migration.

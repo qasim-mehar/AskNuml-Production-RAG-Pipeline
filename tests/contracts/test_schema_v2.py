@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from tests.factories import answer, chunk, citation, document, fetch_result, image_ref, question
 from uni_rag_core import (
     AuthError,
+    BlockKind,
     ContentBlock,
     NotFoundError,
     RateLimitError,
@@ -18,6 +19,20 @@ from uni_rag_core import (
 )
 
 FIXED = datetime(2026, 1, 1, tzinfo=UTC)
+
+
+def content_block() -> ContentBlock:
+    """A fully populated promoted block, including its optional fields."""
+    return ContentBlock(
+        kind=BlockKind.TABLE,
+        text="Assessment weights",
+        index=2,
+        level=1,
+        table_rows=(("Item", "Weight"), ("Midterm", "40%")),
+        page=3,
+        image_ref=image_ref(),
+    )
+
 
 FieldCase = tuple[Callable[[], BaseModel], str, Any, Any]
 
@@ -38,6 +53,10 @@ CASES: list[FieldCase] = [
         [ContentBlock(kind="heading", text="Assessment", index=0)],
         [],
     ),
+    (content_block, "level", 2, 0),
+    (content_block, "table_rows", (("Item", "Weight"),), ()),
+    (content_block, "page", 4, None),
+    (content_block, "image_ref", image_ref(), None),
     (fetch_result, "headers", {"etag": '"v2"'}, {}),
     (
         fetch_result,

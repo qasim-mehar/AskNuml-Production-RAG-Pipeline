@@ -35,7 +35,13 @@ Extend the fetcher contract backwards-compatibly:
   and provides `assert_fetcher_v2_contract` for the request-header round-trip.
 
 The v1 helper remains the gate for lane adapters until they migrate their own
-shims; only the fakes are required to pass the v2 helper in this wave.
+shims; only the fakes are required to pass the v2 helper in this wave. The new
+keyword is optional at the port level, so a v1 adapter (Lane A's current
+`HttpFetcher.fetch(url)`) still satisfies `Fetcher` and must keep being called
+with one argument. Integration callers must not pass `request_headers` to an
+adapter until that lane accepts it; `assert_fetcher_v2_contract` first checks
+the method signature so misuse fails with a clear contract message rather than
+a `TypeError`. Lane A's migration to accept-and-use the kwarg is a handoff item.
 
 ## Alternatives
 

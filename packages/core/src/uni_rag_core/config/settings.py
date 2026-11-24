@@ -13,6 +13,7 @@ from collections.abc import Mapping
 from functools import lru_cache
 from typing import Any
 
+from dotenv import dotenv_values
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -35,7 +36,7 @@ class ApiSection(BaseModel):
     api_version: str = "v1"
     log_level: str = "INFO"
     auth_enabled: bool = False
-    api_key: str = "local-dev-key"
+    api_key: SecretStr = SecretStr("local-dev-key")
     rate_limit_capacity: int = Field(default=30, gt=0)
     rate_limit_refill_per_second: float = Field(default=1.0, gt=0)
     rate_limit_exempt_paths: tuple[str, ...] = (
@@ -63,7 +64,10 @@ class CrawlerSection(BaseModel):
     @field_validator("seeds")
     @classmethod
     def _validate_seeds(cls, value: tuple[str, ...]) -> tuple[str, ...]:
-        """Reject any configured seed that is not an HTTP(S) URL."""
+        """Reject an explicit empty list and any seed that is not an HTTP(S) URL."""
+        if not value:
+            msg = "at least one seed URL is required"
+            raise ValueError(msg)
         for seed in value:
             if not seed.startswith(("http://", "https://")):
                 msg = "crawler seeds must be HTTP(S) URLs"
@@ -103,7 +107,22 @@ _SECTION_TYPES: dict[str, type[BaseModel]] = {
 }
 
 
-def _legacy_section_env(section: str) -> dict[str, Any]:
+def _section_env_lookup() -> dict[str, str]:
+    """Return lower-cased env names from ``.env`` and the process environment.
+
+    The process environment wins over the dotenv file, matching
+    pydantic-settings' precedence. Reads stay inside the settings module (L8).
+    """
+    values = {
+        str(key).lower(): str(value)
+        for key, value in dotenv_values(".env").items()
+        if value is not None
+    }
+    values.update({key.lower(): value for key, value in os.environ.items()})
+    return values
+
+
+def _legacy_section_env(section: str, lookup: Mapping[str, str]) -> dict[str, Any]:
     """Read ``UNI_RAG_<SECTION>_<FIELD>`` for one nested section.
 
     Complex fields (tuples, lists) accept a JSON value, mirroring
@@ -112,7 +131,7 @@ def _legacy_section_env(section: str) -> dict[str, Any]:
     prefix = SECTION_ENV_PREFIXES[section]
     values: dict[str, Any] = {}
     for name, field in _SECTION_TYPES[section].model_fields.items():
-        raw = os.environ.get(f"{prefix}{name.upper()}")
+        raw = lookup.get(f"{prefix}{name.upper()}".lower())
         if raw is None:
             continue
         if field.annotation in (str, int, float, bool):
@@ -123,6 +142,12 @@ def _legacy_section_env(section: str) -> dict[str, Any]:
             except (TypeError, ValueError):
                 values[name] = raw
     return values
+
+
+def _is_ci(environment: str) -> bool:
+    """Treat either ``UNI_RAG_ENVIRONMENT=ci`` or GitHub's ``CI=true`` as CI."""
+    ci_flag = os.environ.get("CI", "").strip().lower()
+    return environment in {"ci", "test"} or ci_flag in {"1", "true", "yes"}
 
 
 class Settings(BaseSettings):
@@ -168,6 +193,7 @@ class Settings(BaseSettings):
         if not isinstance(values, dict):
             return values
         data: dict[str, Any] = dict(values)
+        lookup = _section_env_lookup()
         for section in _SECTION_TYPES:
             current = data.get(section)
             if isinstance(current, BaseModel):
@@ -178,7 +204,7 @@ class Settings(BaseSettings):
                 supplied = {}
             else:
                 continue
-            for name, raw in _legacy_section_env(section).items():
+            for name, raw in _legacy_section_env(section, lookup).items():
                 supplied.setdefault(name, raw)
             data[section] = supplied
         return data
@@ -191,7 +217,7 @@ class Settings(BaseSettings):
 
     def model_post_init(self, __context: Any) -> None:
         """Refuse live providers in CI; fakes remain the default (L4, ADR 0002)."""
-        if self.providers.live_enabled and self.environment in {"ci", "test"}:
+        if self.providers.live_enabled and _is_ci(self.environment):
             msg = "live providers must stay off in CI"
             raise ValueError(msg)
 

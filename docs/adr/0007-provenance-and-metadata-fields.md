@@ -43,7 +43,9 @@ keeps compiling and every JSON payload from a lane still validates:
   exactly the churn the frozen contracts exist to prevent (L3, L14).
 - `AuthError`, `NotFoundError` and `RateLimitError` join the typed hierarchy in
   `uni_rag_core.errors`. G's API-local subclasses retire in its next milestone;
-  G wires the HTTP status mapping then.
+  G wires the HTTP status mapping then. The mechanical rename is
+  `AuthenticationError` → `AuthError` (the other two names already match); G's
+  `_STATUS_BY_TYPE` entry keeps its `401`/`unauthorized` mapping.
 
 `AGENT.md` §3 (L6) is updated in lockstep for `Citation.last_crawled` and
 `Chunk.metadata`. `tests/contracts/test_schema_v2.py` asserts every new field

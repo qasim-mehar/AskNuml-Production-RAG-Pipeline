@@ -4,6 +4,7 @@ Every Lane adapter must pass the corresponding ``assert_*_contract`` helper
 with its own implementation, not just with the in-memory fake.
 """
 
+import inspect
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 
@@ -115,6 +116,9 @@ def assert_fetcher_v2_contract(fetcher: Fetcher) -> None:
     Called only for the fakes and for adapters that migrated off the v1 shim;
     lane adapters keep passing ``assert_fetcher_contract`` until they migrate.
     """
+    assert "request_headers" in inspect.signature(fetcher.fetch).parameters, (
+        "adapter has not migrated to fetcher v2"
+    )
     registered: FetchResult = fetch_result()
     first = fetcher.fetch(registered.url)
     etag = next(value for key, value in first.headers.items() if key.lower() == "etag")

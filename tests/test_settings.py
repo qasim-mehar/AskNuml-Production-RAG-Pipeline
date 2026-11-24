@@ -23,7 +23,8 @@ SECTION_TYPES: dict[str, type[BaseModel]] = {
 
 
 def _env_names() -> list[str]:
-    names = [f"UNI_RAG_{name.upper()}" for name in Settings.model_fields]
+    names = ["CI"]
+    names.extend(f"UNI_RAG_{name.upper()}" for name in Settings.model_fields)
     for section, section_type in SECTION_TYPES.items():
         prefix = SECTION_ENV_PREFIXES[section]
         names.extend(f"{prefix}{name.upper()}" for name in section_type.model_fields)

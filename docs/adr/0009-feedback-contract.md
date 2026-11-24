@@ -25,15 +25,17 @@ Define `POST /api/v1/feedback` as a **local-only transport contract**:
      "reason"?: str, "query_id"?: str }`. Unknown fields are rejected with the
   existing typed `422` `ErrorBody`.
 - Response is `202 Accepted`. The body **echoes the validated payload**; the
-  response carries `x-request-id` with the active trace id. The route is
-  idempotent from the caller's point of view and validates before echoing.
+  response carries the active trace id in both `x-request-id` (Lane H's client)
+  and the configured `api.trace_header` (default `X-Trace-Id`, from the trace
+  middleware). The route is idempotent from the caller's point of view and
+  validates before echoing.
 - The handler **persists nothing**: no database write, no object-store write,
   no golden-set ingestion. `answer_id` is echoed as supplied, not looked up.
 - It emits one structured log line (`feedback.received`) carrying `answer_id`,
   `sentiment`, whether `reason`/`query_id` were present, and the trace id
   from the logging context (L10). No `print`, no swallowed exception (L11).
 
-Lane G2 implements this route. Lane H aligns its mocked client with the
+Lane G implements this route in its G2 milestone. Lane H aligns its mocked client with the
 versioned path and `202` response at migration; its current
 `apps/web/CONTRACTS.md` line (`POST /api/feedback`, `204`) is superseded by
 this ADR.
