@@ -11,6 +11,13 @@ dependencies = [
     "uni-rag-core>=0.1.0",
 ]
 
+# ADR-0003 dependency scope (pending Lane 0 lock update): parsers import
+# `docling` lazily in adapters/docling_parser.py and keep the MinerU interface
+# ready in adapters/mineru_parser.py (MinerU is parked). Neither wheel is
+# available in this offline environment, so they are intentionally NOT declared
+# here yet: adding them would make `uv sync` fail until Lane 0 can refresh
+# uv.lock with network access. Fixture fallbacks keep gates deterministic (L1, L4).
+
 [tool.uv.sources]
 uni-rag-core = { workspace = true }
 

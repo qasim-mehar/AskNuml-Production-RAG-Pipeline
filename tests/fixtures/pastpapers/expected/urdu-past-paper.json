@@ -1,0 +1,40 @@
+{
+  "fixture": "urdu-past-paper.html",
+  "source_kind": "docling-html",
+  "source_path": "tests/fixtures/pastpapers/urdu-past-paper.html",
+  "image_source": null,
+  "doc_id": "paper-urdu-html",
+  "source_url": "https://example.edu/papers/urdu-past-paper.html",
+  "title": "URD-101 Final Examination",
+  "doc_type": "past_paper",
+  "language": "ur",
+  "expected_page_count": 1,
+  "expected_metadata": {
+    "course_code": "URD-101",
+    "year": 2024,
+    "term": "Fall",
+    "exam_type": "Final",
+    "department": "Urdu"
+  },
+  "expected_questions": [
+    {
+      "question_number": 1,
+      "page": 1,
+      "text": "نظم کی تعریف کریں۔",
+      "options": []
+    },
+    {
+      "question_number": 2,
+      "page": 1,
+      "text": "غزل اور نظم میں فرق واضح کریں۔",
+      "options": []
+    }
+  ],
+  "expected_tables": [
+    {
+      "page": 1,
+      "header": ["سوال", "نمبر"],
+      "rows": [["کل", "۲۰"]]
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "fixture": "digital-past-paper.pdf",
+  "source_kind": "docling-pdf",
+  "source_path": "tests/fixtures/pastpapers/digital-past-paper.pdf",
+  "image_source": null,
+  "doc_id": "paper-digital-pdf",
+  "source_url": "https://example.edu/papers/digital-past-paper.pdf",
+  "title": "CS-101 Midterm Examination",
+  "doc_type": "past_paper",
+  "language": "en",
+  "expected_page_count": 2,
+  "expected_metadata": {
+    "course_code": "CS-101",
+    "year": 2026,
+    "term": "Fall",
+    "exam_type": "Midterm",
+    "department": "Computer Science"
+  },
+  "expected_questions": [
+    {
+      "question_number": 1,
+      "page": 1,
+      "text": "Define an algorithm. [5 marks]",
+      "options": []
+    },
+    {
+      "question_number": 2,
+      "page": 1,
+      "text": "State the complexity of binary search. [5 marks]",
+      "options": []
+    },
+    {
+      "question_number": 3,
+      "page": 2,
+      "text": "Write a Python function that reverses a list. [10 marks]",
+      "options": []
+    },
+    {
+      "question_number": 4,
+      "page": 2,
+      "text": "Explain the difference between a stack and a queue. [10 marks]",
+      "options": []
+    }
+  ],
+  "expected_tables": []
+}

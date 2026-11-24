@@ -17,6 +17,11 @@ promoted by an ADR (L1).
 - [2026-11-24][done] Lane 0: stale spec fallback file `docs/AGENT.md.spec` deleted (it duplicated `AGENT.md` and omitted L15–L17).
 - [2026-11-24][done] Lane 0: L15 framework import-linter contract added to `.importlinter`, covering planned `graph/` and `adapters/` as allowed paths.
 - [2026-11-24][done] Lane 0: `docs/lanes/LANE-A.md` … `LANE-H.md` regenerated from the eight-section template in `docs/AGENT_ONBOARDING.md` §5; L15–L17 added to the Lane E/F law lists.
+- [2026-11-24] Lane B: MinerU is parked — no installable wheel is available offline and no OCR is faked. Fallback: `MinerUParser` keeps the engine interface and, for fixtures only, reads a checked-in transcription sidecar plus the scanned PNG; no real OCR runs (L1, L4).
+- [2026-11-24] Lane B: OCR for handwriting and for non-past-paper archives is out of scope.
+- [2026-11-24] Lane B: parsing anything fetched live from the network is out of scope; fixtures only (L4).
+- [2026-11-24] Lane B: storing parsed records in Postgres/Qdrant is out of scope (Lane D).
+- [2026-11-24] Lane B: no PDF/HTML page renderer is available offline, so digital pages get a deterministic placeholder PNG (explicit caption) instead of a rendered image until a renderer is added.
 
 Promotion of any item into scope requires an ADR. This campaign's promotions are
 recorded in ADR 0002 (Lane E), ADR 0003 (Lanes A and B) and ADR 0004 (Lane H).
