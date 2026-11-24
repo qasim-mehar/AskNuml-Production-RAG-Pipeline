@@ -19,6 +19,7 @@ from typing import cast
 import httpx
 import pytest
 
+from tests.factories import document as sample_document
 from tests.integration.composition import build_context, build_fetcher, build_parser, fixture_path
 from tests.integration.provenance import attach_provenance
 from tests.integration.selection import AdapterSelection
@@ -184,6 +185,18 @@ def test_parser_swap_uses_docling_adapter(integration_settings: Settings) -> Non
     assert isinstance(parser, DoclingParser)
     parsed = parser.parse(_FIXTURE_DIR / "content-v1.html")
     assert parsed.pages and parsed.pages[0].text
+
+
+def test_chunking_swap_runs_both_strategies(integration_settings: Settings) -> None:
+    """Both Lane C strategies chunk the same fixture deterministically."""
+    selection = AdapterSelection.from_settings(integration_settings)
+    assert selection.chunking == "strategies"
+    parsed = build_parser(selection).parse(_FIXTURE_DIR / "content-v1.html")
+    chunkable = _chunkable(sample_document(), parsed.pages, {})
+    for strategy in (FIXED_WINDOW, SENTENCE_BOUNDARY):
+        first = Chunker(strategy).chunk(chunkable)
+        second = Chunker(strategy).chunk(chunkable)
+        assert first and first == second
 
 
 @pytest.mark.integration

@@ -52,6 +52,8 @@ class AdapterSelection:
             fetcher="http",
             # swap 2: parsing -> Lane B's DoclingParser (fixture reader fallback)
             parser="docling",
+            # swap 3: chunking -> Lane C's two strategies (F's ablation axes)
+            chunking="strategies",
             live_providers=live,
         )
 
