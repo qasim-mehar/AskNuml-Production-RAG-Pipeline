@@ -7,6 +7,7 @@ logged (L10). The core fakes stay the default through :class:`AdapterSelection`.
 
 from __future__ import annotations
 
+import importlib.util
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -79,6 +80,7 @@ class IntegrationContext:
     embedder: Embedder
     reranker: Reranker
     llm: LLM
+    metadata: PostgresMetadataStore | None
     pipeline: RetrievalPipeline
     chunk_source: ChunkSource | None
 
@@ -208,7 +210,7 @@ def build_context(
     )
     object_store = build_object_store(selection, settings)
     vector_store = build_vector_store(selection, settings, clock=selected_clock)
-    build_metadata_store(selection, settings, clock=selected_clock)
+    metadata = build_metadata_store(selection, settings, clock=selected_clock)
     embedder, reranker, llm = build_providers(selection, settings)
     source = chunk_source if chunk_source is not None else _ChunkSource(chunks)
     pipeline = RetrievalPipeline(
@@ -233,9 +235,15 @@ def build_context(
         embedder=embedder,
         reranker=reranker,
         llm=llm,
+        metadata=metadata,
         pipeline=pipeline,
         chunk_source=source if chunks else None,
     )
+
+
+def parser_backend() -> str:
+    """Return the parser engine actually available, not just the selection (L1)."""
+    return "docling" if importlib.util.find_spec("docling") is not None else "fixture-reader"
 
 
 def fixture_path(registry_path: Path, source_path: str) -> Path:

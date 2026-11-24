@@ -16,6 +16,7 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import cast
+from urllib.parse import urlsplit
 
 import httpx
 import pytest
@@ -41,7 +42,6 @@ from tests.integration.composition import (
     fixture_path,
 )
 from tests.integration.doubles import MemoryMinioClient
-from tests.integration.provenance import attach_provenance
 from tests.integration.selection import AdapterSelection
 from uni_rag_core import (
     Answer,
@@ -84,6 +84,15 @@ _FIXTURE_DIR = (
     / "html"
 )
 _REGISTRY = Path(__file__).resolve().parents[2] / "eval" / "golden" / "fixture-registry.json"
+# Crawler fixtures are served under different names from the eval registry's
+# corpus; the alias keeps both on the same checked-in, provenance-bearing files.
+_FIXTURE_ALIASES: dict[str, str] = {
+    "content-v1.html": "tests/fixtures/html/course-page.html",
+    "content-v2.html": "tests/fixtures/html/course-page.html",
+    "boilerplate-page.html": "tests/fixtures/html/faculty-page.html",
+    "pdf-links-page.html": "tests/fixtures/pdf/digital-course-outline.pdf",
+    "digital-past-paper.html": "tests/fixtures/pastpapers/digital-past-paper.html",
+}
 
 _GOLDEN_QUERIES: tuple[tuple[str, Language, bool], ...] = (
     ("Who is the instructor for CS-101?", Language.EN, False),
@@ -120,9 +129,9 @@ class _FixtureHandler(SimpleHTTPRequestHandler):
 
 
 @contextmanager
-def _local_fixture_server() -> Iterator[str]:
-    """Serve the fixture directory on localhost and yield its base URL."""
-    handler = partial(_FixtureHandler, directory=str(_FIXTURE_DIR))
+def _local_fixture_server(directory: Path | None = None) -> Iterator[str]:
+    """Serve a fixture directory on localhost and yield its base URL."""
+    handler = partial(_FixtureHandler, directory=str(directory or _FIXTURE_DIR))
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -169,9 +178,13 @@ def test_fetcher_swap_uses_real_http_fetcher(integration_settings: Settings) -> 
 def _source_path(document: Document, registry_path: Path) -> Path:
     """Map a crawled document back to its checked-in fixture source."""
     payload = json.loads(registry_path.read_text(encoding="utf-8"))
+    tail = urlsplit(document.source_url).path.rsplit("/", 1)[-1]
+    if tail in _FIXTURE_ALIASES:
+        return _REPO_ROOT / _FIXTURE_ALIASES[tail]
     for entry in payload["documents"]:
-        if entry["source_url"] == document.source_url:
-            return fixture_path(registry_path, entry["source_path"])
+        mapped = fixture_path(registry_path, entry["source_path"])
+        if entry["source_url"] == document.source_url or mapped.name == tail:
+            return mapped
     raise AssertionError(f"no fixture maps to {document.source_url!r}")
 
 
@@ -300,6 +313,70 @@ def test_chunking_swap_runs_both_strategies(integration_settings: Settings) -> N
         assert first and first == second
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "New CONTRACT-CHANGE filed for Lane 0: Lane D's Qdrant payload carries "
+        "index fields (is_live, indexed_at, ...) that Lane E validates as a "
+        "Chunk with extra='forbid'. Integration must not patch either lane."
+    ),
+)
+def test_offline_end_to_end_fixture_pipeline(integration_settings: Settings) -> None:
+    """Crawl -> parse -> chunk -> index -> answer without Docker or live providers."""
+    selection = replace(
+        AdapterSelection.ci_default(),
+        fetcher="http",
+        parser="docling",
+        chunking="strategies",
+        vector_store="qdrant_local",
+    )
+    past_papers = _REPO_ROOT / "tests" / "fixtures" / "pastpapers"
+    with _local_fixture_server(past_papers) as base, httpx.Client(timeout=10) as client:
+        config = CrawlerConfig(
+            seeds=(f"{base}/digital-past-paper.html",),
+            max_depth=0,
+            requests_per_second=1000.0,
+        )
+        crawler = CrawlService(
+            config,
+            build_fetcher(selection, integration_settings, client=client),
+            FakeClock(),
+        )
+        report = crawler.run()
+        assert report.documents
+        ctx = build_context(selection, integration_settings)
+        parser = build_parser(selection)
+        chunks: list[Chunk] = []
+        for document in report.documents:
+            path = _source_path(document, _REGISTRY)
+            outcome = parse_document(
+                document, source_path=path, parser=parser, object_store=ctx.object_store
+            )
+            chunkable = _chunkable(document, parser.parse(path).pages, outcome.image_refs)
+            chunks.extend(Chunker(FIXED_WINDOW).chunk(chunkable))
+        assert chunks
+        ctx.vector_store.upsert([(chunk, ctx.embedder.embed([chunk.text])[0]) for chunk in chunks])
+        answered = ctx.ask(
+            Query(
+                query_id="offline-e2e",
+                text="Evaluate the limit of (x^2 - 1) / (x - 1) as x approaches 1.",
+                language=Language.EN,
+                top_k=5,
+            )
+        )
+        assert answered.citations
+        assert all(citation.source_url for citation in answered.citations)
+        weak = ctx.ask(
+            Query(
+                query_id="offline-weak",
+                text="What is the tuition fee for CS-101?",
+                language=Language.EN,
+                top_k=5,
+            )
+        )
+        assert weak.abstained
+
+
 @pytest.mark.integration
 def test_integrated_pipeline_smoke(
     skip_without_compose: None,
@@ -330,6 +407,7 @@ def test_integrated_pipeline_smoke(
         ctx = build_context(selection, integration_settings)
         parser = build_parser(selection)
         all_chunks: dict[str, Chunk] = {}
+        stored_images: list[str] = []
         for strategy in (FIXED_WINDOW, SENTENCE_BOUNDARY):
             chunker = Chunker(strategy)
             for document in report.documents:
@@ -339,20 +417,26 @@ def test_integrated_pipeline_smoke(
                     parser=parser,
                     object_store=ctx.object_store,
                 )
+                for ref in outcome.image_refs.values():
+                    assert ctx.object_store.get(ref.ref_id)
+                    stored_images.append(ref.ref_id)
                 parsed = parser.parse(_source_path(document, _REGISTRY))
                 chunkable = _chunkable(document, parsed.pages, outcome.image_refs)
                 for chunk in chunker.chunk(chunkable):
                     all_chunks[chunk.chunk_id] = chunk
         assert len(all_chunks) > 0
+        assert stored_images
         ctx.vector_store.upsert(
             [(chunk, ctx.embedder.embed([chunk.text])[0]) for chunk in all_chunks.values()]
         )
 
         for index, (text, language, weak) in enumerate(_GOLDEN_QUERIES):
+            # No integration-side patching: these are the pipeline's own outputs.
+            # Lane E's pending ADR-0007 migration (Citation.last_crawled and a
+            # structured next_step) is filed in the handoff when this fails.
             answer: Answer = ctx.ask(
                 Query(query_id=f"smoke-{index}", text=text, language=language, top_k=5)
             )
-            answer = attach_provenance(answer, all_chunks, language)
             if weak:
                 assert answer.abstained
                 assert answer.next_step
@@ -361,4 +445,6 @@ def test_integrated_pipeline_smoke(
                 for citation in answer.citations:
                     assert citation.source_url
                     assert citation.last_crawled is not None
+                for image in answer.images:
+                    assert ctx.object_store.get(image.ref_id)
             assert answer.language == language
