@@ -1,0 +1,84 @@
+{
+  "query": {
+    "query_id": "q-contract",
+    "text": "What is the fee?",
+    "language": "en",
+    "top_k": 5,
+    "filters": {
+      "department": "CS"
+    }
+  },
+  "citation": {
+    "chunk_id": "c-1",
+    "doc_id": "d-1",
+    "source_url": "https://uni.example/fees",
+    "snippet": "Fee is 1000",
+    "page": 3,
+    "score": 0.91
+  },
+  "image_ref": {
+    "ref_id": "img-1",
+    "source_url": "https://uni.example/past/2024",
+    "page": 2,
+    "caption": "Past paper page 2",
+    "mime_type": "image/png"
+  },
+  "answer": {
+    "answer_id": "a-contract",
+    "query_id": "q-contract",
+    "text": "The fee is 1000.",
+    "citations": [
+      {
+        "chunk_id": "c-1",
+        "doc_id": "d-1",
+        "source_url": "https://uni.example/fees",
+        "snippet": "Fee is 1000",
+        "page": 3,
+        "score": 0.91
+      }
+    ],
+    "images": [
+      {
+        "ref_id": "img-1",
+        "source_url": "https://uni.example/past/2024",
+        "page": 2,
+        "caption": "Past paper page 2",
+        "mime_type": "image/png"
+      }
+    ],
+    "abstained": false,
+    "confidence": 0.91,
+    "language": "en"
+  },
+  "past_paper": {
+    "question_id": "pp-1",
+    "doc_id": "d-pp",
+    "source_url": "https://uni.example/past/2024",
+    "page": 1,
+    "question_number": 4,
+    "text": "What is 2+2?",
+    "year": 2024,
+    "subject": "CS",
+    "options": [
+      "3",
+      "4"
+    ],
+    "image_ref": {
+      "ref_id": "img-1",
+      "source_url": "https://uni.example/past/2024",
+      "page": 2,
+      "caption": "Past paper page 2",
+      "mime_type": "image/png"
+    }
+  },
+  "abstained_answer": {
+    "answer_id": "a-abstain",
+    "query_id": "q-contract",
+    "text": "Insufficient evidence; try a more specific question.",
+    "citations": [],
+    "images": [],
+    "abstained": true,
+    "confidence": 0.0,
+    "language": "ur"
+  }
+}
