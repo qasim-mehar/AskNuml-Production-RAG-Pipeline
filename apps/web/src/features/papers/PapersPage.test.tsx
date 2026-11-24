@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import contract from "@/lib/api/mocks/openapi-emitted.json";
+import { PAPER_RESULTS } from "@/lib/api/mocks/fixtures";
 import { lastMockCall, setMockScenario } from "@/lib/api/mocks/handlers";
 import { expectNoCriticalA11yViolations } from "@/test/a11y";
 
@@ -29,6 +31,7 @@ describe("PapersPage", () => {
 
     await screen.findByRole("list", { name: "Past-paper results" });
     const url = new URL(lastMockCall()?.url ?? "http://localhost/");
+    expect(url.pathname).toBe(contract.conventions.papers);
     expect(Object.fromEntries(url.searchParams)).toEqual({
       course_code: "CS",
       year: "2024",
@@ -71,6 +74,18 @@ describe("PapersPage", () => {
       element.focus();
       expect(document.activeElement).toBe(element);
     }
+  });
+
+  it("renders an Urdu paper right-to-left from the real payload shape", async () => {
+    setMockScenario("papers");
+    render(<PapersPage />);
+    search();
+
+    const urduPaper = PAPER_RESULTS.find((paper) => paper.question_id === "question-ur-1");
+    expect(urduPaper).toBeDefined();
+    const text = await screen.findByText(urduPaper?.text ?? "");
+    expect(text).toHaveAttribute("dir", "rtl");
+    expect(text).toHaveAttribute("lang", "ur");
   });
 
   it("shows a typed error with the trace request id", async () => {

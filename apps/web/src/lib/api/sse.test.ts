@@ -14,8 +14,8 @@ function streamFrom(chunks: string[]): ReadableStream<Uint8Array> {
 
 describe("SSE framing", () => {
   it("ignores comments and supports multi-line data", () => {
-    expect(parseEventBlock(": keep-alive\nevent: answer\ndata: {\"a\":1}\ndata: {\"b\":2}")).toEqual({
-      event: "answer",
+    expect(parseEventBlock(": keep-alive\nevent: citations\ndata: {\"a\":1}\ndata: {\"b\":2}")).toEqual({
+      event: "citations",
       data: '{"a":1}\n{"b":2}',
     });
   });
@@ -23,11 +23,11 @@ describe("SSE framing", () => {
   it("handles a CRLF boundary split across two reads", async () => {
     const events: SseEvent[] = [];
     for await (const event of parseSseStream(
-      streamFrom(["event: token\r", '\ndata: {"type":"token","text":"hi"}\r\n\r\n']),
+      streamFrom(["event: token\r", '\ndata: {"token":"hi"}\r\n\r\n']),
     )) {
       events.push(event);
     }
-    expect(events).toEqual([{ event: "token", data: '{"type":"token","text":"hi"}' }]);
+    expect(events).toEqual([{ event: "token", data: '{"token":"hi"}' }]);
   });
 
   it("emits a final event that has no trailing blank line", async () => {

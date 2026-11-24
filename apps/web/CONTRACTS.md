@@ -1,54 +1,52 @@
-# Lane H → Lane G contract expectations
+# Lane H → Lane G contract reconciliation (milestone 2)
 
-Lane H ships against the frozen `Query`/`Answer`/`Citation`/`ImageRef`/
-`PastPaperQuestion` schemas and a deterministic mock fetch router. Lane G has not
-merged its OpenAPI yet, so the endpoints below are the contract Web expects.
-They are not implemented by Web; swapping `lib/api/mocks/handlers.ts` for the real
-client should require no component changes.
+Source of truth: `apps/api/openapi.json` on this branch. **State at swap time:** the
+artifact is the contract-wave regeneration — it carries the ADR-0007 schema fields
+(`Citation.last_crawled`, `ImageRef.image_url`, `Answer.next_step`,
+`Answer.abstention_reason`) but does **not** declare the feedback, image-serving or
+papers routes. Lane G's G2 route work is not present here. Routes not in the
+artifact are marked below and filed as CONTRACT-CHANGE notes; Web does not claim
+they are artifact-backed. Tests assert the two artifact routes against
+`mocks/openapi-emitted.json`, generated from the artifact by
+`apps/web/scripts/generate_contract_fixture.py`.
 
-| Method | Path | Request | Response |
-| --- | --- | --- | --- |
-| POST | `/api/query` | frozen `Query` JSON | frozen `Answer` JSON |
-| POST | `/api/query/stream` | frozen `Query` JSON | `text/event-stream` (below) |
-| POST | `/api/feedback` | `{ answer_id, query_id?, sentiment: "positive"\|"negative", reason? }` | `204` |
-| GET | `/api/papers?course_code=&year=&term=&exam_type=&department=` | — | `{ results: PastPaperQuestion[] }` |
-| GET | `/api/images/{ref_id}` | object-store key path segment | image bytes |
+## Endpoint reconciliation
 
-Every response must carry `x-request-id` (or `x-trace-id` / `traceparent`);
-Web reads it into typed `ApiError`s and structured logs. All payloads are
-validated with strict Zod mirrors at the edge (`lib/api/schemas.ts`).
+| Milestone-1 assumption | Artifact / ADR status | Web implementation |
+| --- | --- | --- |
+| `POST /api/query` | **Resolved:** artifact `POST /api/v1/query` (200 → `Answer`; 401/422/429/503 → `ErrorBody`; `X-API-Key` security) | `query()` posts a strict `Query` to the artifact path and validates `Answer`. Auth remains out of H's scope. |
+| `POST /api/query/stream` | **Resolved:** artifact `POST /api/v1/query/stream`; its 200 has no declared content schema. Framing lives in `uni_rag_api.schemas` (ADR 0009: API-local SSE envelopes). | `stream()` posts the same `Query`, parses `token` + final `citations`, validates both. |
+| SSE `token` = `{type,text}`; `citation`, `image`, `answer`, `error` events | **Superseded:** real events are `token` = `{ token }` (`TokenEvent`) and `citations` = `{ answer }` (`CitationsEvent`). No `citation`/`image`/`answer`/`error` event is emitted. Non-2xx errors are HTTP `ErrorBody`, not an SSE frame. | Retired the four invented event handlers; unknown SSE names become a typed `unknown_stream_event` error. Provenance renders only from the final validated `Answer`. |
+| `POST /api/feedback`, `204` | **Superseded by ADR 0009:** `POST /api/v1/feedback`, `202` whose body echoes the validated payload, `x-request-id` on success and failure, `422 ErrorBody` on unknown/invalid fields. Artifact lacks the route → CONTRACT-CHANGE. | `feedback()` validates the echo with `FeedbackResponseSchema`, returns `{accepted, requestId, response}` on 202 and a typed `ApiError` on 422. |
+| `GET /api/papers?course_code=&year=&term=&exam_type=&department=` | **Unresolved:** no artifact route and no `PastPaperQuestion` schema. Result labels are in core via ADR 0007. → CONTRACT-CHANGE. | `papers()` keeps the milestone-1 path and query keys, validates `{ results: PastPaperQuestion[] }` against the core-derived schema. |
+| `GET /api/images/{ref_id}` | **Partially resolved:** ADR 0007 defines the convention and the artifact adds `ImageRef.image_url`; no artifact route → CONTRACT-CHANGE. | `imageSrcFor()` uses `image_url` when present, else `/api/images/{encoded ref_id}`; a failed load becomes an explicit status message, never a broken frame. |
+| `x-request-id` (or `x-trace-id`/`traceparent`) on every response | **Partial:** artefact does not document headers; ADR 0009 requires it for feedback, trace middleware supplies it for queries. → CONTRACT-CHANGE (document the header). | `requestIdFrom()` captures it on 2xx and non-2xx; every `ApiError` carries it and `logClientError` logs it as structured JSON. |
+| `Citation.last_crawled` forward-compatible chip | **Resolved:** real field in core (ADR 0007) and in the artifact's `Citation`. | Chip renders the payload date (formatted for display) when present and nothing when absent. |
+| Finder result labels absent from `PastPaperQuestion` | **Resolved in core** (ADR 0007 adds `course_code`, `term`, `exam_type`, `department`); still absent from the artifact's schema set. | Zod mirror carries the four fields with defaults; filters stay user-selected UI values, never payload facts. |
+| Image bytes had no browser URL | **Resolved:** `ImageRef.image_url` is in core and the artifact (ADR 0007). | Consumed as above. |
+| Feedback was local-only UI state with a mocked POST | **Resolved:** ADR 0009 grants a real local-only `202` echo that persists nothing. | UI reports acceptance honestly and does not imply persistence. |
+| Fixture source | **Resolved:** generated from core Pydantic dumps **and** the OpenAPI artifact. | `core-emitted.json` + `openapi-emitted.json`; both round-trip through the Zod mirrors in `schemas.test.ts`. |
 
-## SSE event contract
+## CONTRACT-CHANGE notes for Lane 0 / Lane G
 
-Each frame is `event: <name>` + `data: <json>`:
+1. Add `POST /api/v1/feedback` to `openapi.json` with the ADR 0009 request, `202`
+   echo response and `422 ErrorBody`; the route implementation is not in this artifact.
+2. Add the papers finder route (path to confirm) and `PastPaperQuestion` schema to
+   `openapi.json`; Web currently holds the milestone-1 `/api/papers` assumption.
+3. Add `GET /api/images/{ref_id}` with its image response content type; the
+   `image_url` convention alone is not a served route in the artifact.
+4. Document `x-request-id` on every operation (or add the trace header to the
+   artifact's documented headers) so error correlation is contract-backed.
+5. Document the two SSE envelopes in the artifact, or state in its description that
+   they are API-local per ADR 0009; today the 200 stream has no schema at all.
+6. The artifact declares `ApiKeyAuth` on the query routes. Web does not send or
+   manage an API key (auth is out of scope); the fake backend used for the
+   Lighthouse run leaves the header unenforced and is labelled as such.
 
-- `token` — `{ "type": "token", "text": string }` (incremental answer text)
-- `citation` — `{ "type": "citation", "citation": Citation }`
-- `image` — `{ "type": "image", "image": ImageRef }`
-- `answer` — `{ "type": "answer", "answer": Answer }` (authoritative final event)
-- `error` — `{ "type": "error", "code": string, "message": string }`
+## Fixture provenance (L12, L4)
 
-A stream without a final `answer` event, or with an event that fails validation,
-is a typed error state in Web — never a partial render.
-
-## Open items requiring Lane 0 / Lane G action (CONTRACT-CHANGE)
-
-- **Citation last-updated date.** ADR 0004 asks citation chips to show a
-  last-updated date, but the frozen core `Citation` has no `last_crawled` field.
-  `CitationSchema` carries an optional, strictly forward-compatible
-  `last_crawled`; the chip renders it only when a payload supplies it. Core must
-  add the field before Lane G may emit it.
-- **Finder result labels.** `PastPaperQuestion` lacks `course_code`, `term`,
-  `exam_type` and `department`, so results are rendered from the fields the
-  schema does carry; the filter values are sent as query parameters and shown as
-  the user's own selection, never as payload facts.
-- **Image bytes.** `ImageRef` has `ref_id` but no browser-fetchable URL; Web
-  assumes an `/api/images/{ref_id}` object-store proxy (or wants an `image_url`
-  field added to `ImageRef`).
-- **Feedback endpoint scope.** ADR 0004 says feedback is local UI state only,
-  while the Lane H mission requires a mocked feedback POST and a Lane G endpoint
-  expectation. Lane 0 should reconcile the ADR before Lane G builds the route;
-  until then the UI accepts the success/failure result of the response honestly.
-- **Contract fixture source.** `src/lib/api/mocks/core-emitted.json` is produced
-  by `apps/web/scripts/generate_contract_fixture.py` from the Pydantic models;
-  regenerate it whenever Lane 0 changes a frozen schema.
+`uv run python apps/web/scripts/generate_contract_fixture.py` regenerates both
+fixtures deterministically: `core-emitted.json` from the frozen Pydantic models
+(with ADR-0007 fields populated) and `openapi-emitted.json` from the served
+artifact's `components.schemas` and `operationId`s. Tests never call the live API;
+the fetch router in `mocks/handlers.ts` serves these shapes from `globalThis.fetch`.

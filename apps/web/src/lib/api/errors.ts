@@ -1,6 +1,8 @@
 /** Typed client-side errors and structured logging (L10). No React, no fetching. */
 
-/** Header Lane G must return so Web can correlate an error with a server trace. */
+import { ErrorBodySchema } from "./schemas";
+
+/** Header Lane G returns so Web can correlate an error with a server trace. */
 export const REQUEST_ID_HEADER = "x-request-id";
 
 export type ApiErrorKind = "http" | "schema" | "stream";
@@ -38,17 +40,17 @@ export function requestIdFrom(headers: Headers): string | null {
   );
 }
 
-/** Build a typed HTTP error, reading an optional {code, message} JSON body. */
+/** Build a typed HTTP error from the artifact's ErrorBody envelope (L10, L11). */
 export async function httpErrorFrom(response: Response, path: string): Promise<ApiError> {
   const requestId = requestIdFrom(response.headers);
   let code: string | null = null;
   let message = `Request to ${path} failed with status ${response.status}`;
 
   const body: unknown = await response.json().catch(() => null);
-  if (typeof body === "object" && body !== null) {
-    const record = body as Record<string, unknown>;
-    if (typeof record["code"] === "string") code = record["code"];
-    if (typeof record["message"] === "string") message = record["message"];
+  const parsed = ErrorBodySchema.safeParse(body);
+  if (parsed.success) {
+    code = parsed.data.code;
+    message = parsed.data.message;
   }
 
   return new ApiError(message, "http", response.status, requestId, code);

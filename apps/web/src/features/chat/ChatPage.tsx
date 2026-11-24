@@ -98,16 +98,6 @@ export function ChatPage() {
       {draft ? (
         <section aria-label="Streaming answer">
           <MessageBubble text={draft.text} language={draft.language} role="assistant" />
-          {draft.citations.length > 0 ? (
-            <ul aria-label="Citations">
-              {draft.citations.map((citation) => (
-                <CitationChip key={citation.chunk_id} citation={citation} />
-              ))}
-            </ul>
-          ) : null}
-          {draft.images.map((image) => (
-            <PageImage key={image.ref_id} image={image} />
-          ))}
         </section>
       ) : null}
 

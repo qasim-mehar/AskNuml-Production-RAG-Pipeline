@@ -1,17 +1,18 @@
 /**
- * MSW-equivalent deterministic network handlers. Root `pnpm-workspace.yaml`
- * gates dependency build scripts and `msw` cannot be approved without editing
- * Lane 0-owned config, so this router stubs global fetch instead (L4: no real
- * network in tests). Same handler/scenario semantics, zero ambient state.
+ * Deterministic fetch-level network router for tests. The routes and envelopes
+ * mirror the live client (`lib/api/routes.ts`, `lib/api/schemas.ts`); nothing here
+ * reaches the real API (L4). Unmatched calls throw loudly.
  */
 
 import { REQUEST_ID_HEADER } from "../errors";
+import { ROUTES } from "../routes";
 import { formatSseEvent } from "../sse";
 import {
   ABSTAINING_ANSWER,
   EMPTY_PAPER_RESULTS,
   ENGLISH_ANSWER,
   ERROR_BODY,
+  FEEDBACK_VALIDATION_ERROR,
   IMAGE_ANSWER,
   PAPER_RESULTS,
   ROMAN_URDU_ANSWER,
@@ -30,7 +31,11 @@ export type MockScenario =
   | "emptyPapers"
   | "error"
   | "invalid"
-  | "invalidStream";
+  | "invalidStream"
+  | "unknownStream"
+  | "feedback422"
+  | "feedback200"
+  | "missingImage";
 
 export type RecordedCall = { method: string; url: string; body: unknown };
 
@@ -87,39 +92,36 @@ function answerForScenario(): unknown {
   }
 }
 
-/** Scenario-aware SSE frames; the final answer always commits the payload. */
+/** Real envelopes: ordered `token` frames and one authoritative `citations` frame. */
 function eventsForScenario(): ReadonlyArray<{ event: string; payload: unknown }> {
   if (scenario === "invalidStream") {
     return [
-      { event: "token", payload: { type: "token", text: "Partial text only" } },
-      {
-        event: "answer",
-        payload: { type: "answer", answer: { ...ENGLISH_ANSWER, language: "fr" } },
-      },
+      { event: "token", payload: { token: "Partial text only" } },
+      { event: "citations", payload: { answer: { ...ENGLISH_ANSWER, language: "fr" } } },
     ];
   }
-  if (scenario === "abstain") {
+  if (scenario === "unknownStream") {
     return [
-      { event: "token", payload: { type: "token", text: ABSTAINING_ANSWER.text } },
-      { event: "answer", payload: { type: "answer", answer: ABSTAINING_ANSWER } },
+      { event: "token", payload: { token: "Partial text only" } },
+      { event: "surprise", payload: { answer: ENGLISH_ANSWER } },
     ];
   }
-  if (scenario === "urdu" || scenario === "romanUrdu" || scenario === "image") {
-    const answer =
-      scenario === "urdu" ? URDU_ANSWER : scenario === "image" ? IMAGE_ANSWER : ROMAN_URDU_ANSWER;
-    const frames: Array<{ event: string; payload: unknown }> = [
-      { event: "token", payload: { type: "token", text: answer.text } },
-    ];
-    for (const citation of answer.citations) {
-      frames.push({ event: "citation", payload: { type: "citation", citation } });
-    }
-    for (const image of answer.images) {
-      frames.push({ event: "image", payload: { type: "image", image } });
-    }
-    frames.push({ event: "answer", payload: { type: "answer", answer } });
-    return frames;
-  }
-  return STREAM_EVENTS;
+  if (scenario === "stream") return STREAM_EVENTS;
+
+  const answer =
+    scenario === "urdu"
+      ? URDU_ANSWER
+      : scenario === "romanUrdu"
+        ? ROMAN_URDU_ANSWER
+        : scenario === "image"
+          ? IMAGE_ANSWER
+          : scenario === "english"
+            ? ENGLISH_ANSWER
+            : ABSTAINING_ANSWER;
+  return [
+    { event: "token", payload: { token: answer.text } },
+    { event: "citations", payload: { answer } },
+  ];
 }
 
 /** Emit one SSE frame per timer tick so incremental rendering is testable. */
@@ -145,8 +147,8 @@ function streamBody(): ReadableStream<Uint8Array> {
 }
 
 async function mockFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  // jsdom's AbortSignal is not the Node Request's signal instance; the mocks
-  // never abort, so drop it before constructing a Request.
+  // jsdom's AbortSignal is not the Node Request's signal instance; the router
+  // never aborts, so drop it before constructing a Request.
   const requestInit: RequestInit = { ...init };
   delete requestInit.signal;
   const request =
@@ -167,28 +169,23 @@ async function mockFetch(input: RequestInfo | URL, init?: RequestInit): Promise<
     "content-type": "application/json",
     [REQUEST_ID_HEADER]: "req-trace-001",
   };
-  const json = (data: unknown, status = 200): Response =>
-    new Response(JSON.stringify(data), { status, headers: jsonHeaders });
+  const json = (data: unknown, status = 200, traceId = "req-trace-001"): Response =>
+    new Response(JSON.stringify(data), {
+      status,
+      headers: { ...jsonHeaders, [REQUEST_ID_HEADER]: traceId },
+    });
 
-  if (path === "/api/query" && request.method === "POST") {
-    if (scenario === "error") {
-      return new Response(JSON.stringify(ERROR_BODY), {
-        status: 503,
-        headers: { ...jsonHeaders, [REQUEST_ID_HEADER]: "req-error-503" },
-      });
-    }
+  if (path === ROUTES.query && request.method === "POST") {
+    if (scenario === "error") return json(ERROR_BODY, 503, "req-error-503");
     return json(answerForScenario());
   }
-  if (path === "/api/feedback" && request.method === "POST") {
-    return new Response(null, { status: 204, headers: jsonHeaders });
+  if (path === ROUTES.feedback && request.method === "POST") {
+    if (scenario === "feedback422") return json(FEEDBACK_VALIDATION_ERROR, 422, "req-feedback-422");
+    if (scenario === "feedback200") return json(body, 200, "req-feedback-200");
+    return json(body, 202, "req-feedback-202");
   }
-  if (path === "/api/query/stream" && request.method === "POST") {
-    if (scenario === "error") {
-      return new Response(JSON.stringify(ERROR_BODY), {
-        status: 503,
-        headers: { ...jsonHeaders, [REQUEST_ID_HEADER]: "req-error-stream-503" },
-      });
-    }
+  if (path === ROUTES.stream && request.method === "POST") {
+    if (scenario === "error") return json(ERROR_BODY, 503, "req-error-stream-503");
     return new Response(streamBody(), {
       status: 200,
       headers: {
@@ -197,27 +194,20 @@ async function mockFetch(input: RequestInfo | URL, init?: RequestInit): Promise<
       },
     });
   }
-  if (path === "/api/papers" && request.method === "GET") {
+  if (path === ROUTES.papers && request.method === "GET") {
     if (scenario === "emptyPapers") return json(EMPTY_PAPER_RESULTS);
-    if (scenario === "error") {
-      return json(ERROR_BODY, 503);
-    }
+    if (scenario === "error") return json(ERROR_BODY, 503);
     return json({ results: PAPER_RESULTS });
   }
-  if (path.startsWith("/api/images/") && request.method === "GET") {
+  if (path.startsWith(ROUTES.imagesPrefix) && request.method === "GET") {
+    if (scenario === "missingImage") return json(ERROR_BODY, 404, "req-image-404");
     const pixel = Buffer.from(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
       "base64",
     );
     return new Response(pixel, { status: 200, headers: { "content-type": "image/png" } });
   }
-  if (scenario === "error") {
-    return new Response(JSON.stringify(ERROR_BODY), {
-      status: 503,
-      headers: { ...jsonHeaders, [REQUEST_ID_HEADER]: "req-error-503" },
-    });
-  }
+  if (scenario === "error") return json(ERROR_BODY, 503, "req-error-503");
 
-  // Unmatched calls are loud: a test must never silently fall through to a network request.
   throw new Error(`No mock handler for ${request.method} ${path} (scenario: ${scenario})`);
 }

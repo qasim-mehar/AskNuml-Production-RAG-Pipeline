@@ -6,8 +6,6 @@ import { feedback as sendFeedbackRequest, stream } from "@/lib/api/client";
 import { ApiError, logClientError } from "@/lib/api/errors";
 import {
   type Answer,
-  type Citation,
-  type ImageRef,
   type Language,
   type Sentiment,
   QuerySchema,
@@ -23,14 +21,12 @@ export type ChatTurn = {
 
 export type DraftAnswer = {
   text: string;
-  citations: Citation[];
-  images: ImageRef[];
   language: Language;
 };
 
 export type ChatStatus = "idle" | "streaming" | "error";
 
-/** Composes the streamed API client into UI state. No fetching in components. */
+/** Composes the live streamed API client into UI state. No fetching in components. */
 export function useChat() {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [draft, setDraft] = useState<DraftAnswer | null>(null);
@@ -53,22 +49,16 @@ export function useChat() {
       ...previous,
       { id: `user-${id}`, role: "user", text, language },
     ]);
-    setDraft({ text: "", citations: [], images: [], language });
+    setDraft({ text: "", language });
     setStatus("streaming");
     setError(null);
 
     try {
+      // The real stream sends tokens only; citations/images arrive in the final
+      // `citations` event and are rendered from that validated Answer (L5).
       const answer = await stream(query, {
         onToken: (token) =>
           setDraft((previous) => (previous ? { ...previous, text: previous.text + token } : previous)),
-        onCitation: (citation) =>
-          setDraft((previous) =>
-            previous ? { ...previous, citations: [...previous.citations, citation] } : previous,
-          ),
-        onImage: (image) =>
-          setDraft((previous) =>
-            previous ? { ...previous, images: [...previous.images, image] } : previous,
-          ),
       });
       setTurns((previous) => [
         ...previous,

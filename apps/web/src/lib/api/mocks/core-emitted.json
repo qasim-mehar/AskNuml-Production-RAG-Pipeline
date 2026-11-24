@@ -14,14 +14,16 @@
     "source_url": "https://uni.example/fees",
     "snippet": "Fee is 1000",
     "page": 3,
-    "score": 0.91
+    "score": 0.91,
+    "last_crawled": "2026-11-20T09:30:00Z"
   },
   "image_ref": {
     "ref_id": "img-1",
     "source_url": "https://uni.example/past/2024",
     "page": 2,
     "caption": "Past paper page 2",
-    "mime_type": "image/png"
+    "mime_type": "image/png",
+    "image_url": "/api/images/img-1"
   },
   "answer": {
     "answer_id": "a-contract",
@@ -34,7 +36,8 @@
         "source_url": "https://uni.example/fees",
         "snippet": "Fee is 1000",
         "page": 3,
-        "score": 0.91
+        "score": 0.91,
+        "last_crawled": "2026-11-20T09:30:00Z"
       }
     ],
     "images": [
@@ -43,12 +46,15 @@
         "source_url": "https://uni.example/past/2024",
         "page": 2,
         "caption": "Past paper page 2",
-        "mime_type": "image/png"
+        "mime_type": "image/png",
+        "image_url": "/api/images/img-1"
       }
     ],
     "abstained": false,
     "confidence": 0.91,
-    "language": "en"
+    "language": "en",
+    "next_step": null,
+    "abstention_reason": null
   },
   "past_paper": {
     "question_id": "pp-1",
@@ -68,8 +74,13 @@
       "source_url": "https://uni.example/past/2024",
       "page": 2,
       "caption": "Past paper page 2",
-      "mime_type": "image/png"
-    }
+      "mime_type": "image/png",
+      "image_url": "/api/images/img-1"
+    },
+    "course_code": "CS",
+    "term": "fall",
+    "exam_type": "final",
+    "department": "Computer Science"
   },
   "abstained_answer": {
     "answer_id": "a-abstain",
@@ -79,6 +90,8 @@
     "images": [],
     "abstained": true,
     "confidence": 0.0,
-    "language": "ur"
+    "language": "ur",
+    "next_step": "Search the past-paper archive for a course code.",
+    "abstention_reason": "The retrieved chunks do not state the deadline."
   }
 }

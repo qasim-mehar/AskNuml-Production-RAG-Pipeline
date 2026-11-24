@@ -51,7 +51,10 @@ export function PapersPage() {
                 {paper.text}
               </p>
               {paper.subject ? (
-                <p dir={directionFor(detectLanguage(paper.subject))}>
+                <p
+                  dir={directionFor(detectLanguage(paper.subject))}
+                  lang={langTagFor(detectLanguage(paper.subject))}
+                >
                   Subject: {paper.subject}
                 </p>
               ) : null}

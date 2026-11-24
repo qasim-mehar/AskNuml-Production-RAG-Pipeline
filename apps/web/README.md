@@ -17,11 +17,12 @@ raises a typed `ApiError` and renders an alert, never a partial answer.
 
 ## Validation library
 
-`zod` (runtime dependency) mirrors `packages/core/src/uni_rag_core/schemas/`.
-`src/lib/api/mocks/core-emitted.json` is generated from the Pydantic models by
-`uv run python apps/web/scripts/generate_contract_fixture.py` (run from the repo
-root) and is the contract-fidelity fixture for `schemas.test.ts`. Lane G endpoint
-expectations and CONTRACT-CHANGE items are recorded in `CONTRACTS.md`.
+`zod` (runtime dependency) mirrors the served `apps/api/openapi.json` plus the
+frozen core schemas. `uv run python apps/web/scripts/generate_contract_fixture.py`
+(run from the repo root) regenerates `mocks/core-emitted.json` from the Pydantic
+models and `mocks/openapi-emitted.json` from the artifact's operationIds and
+schemas. Both round-trip through the Zod mirrors in `schemas.test.ts`. Lane G
+endpoint expectations and CONTRACT-CHANGE items are recorded in `CONTRACTS.md`.
 
 ## Tests
 
@@ -30,8 +31,19 @@ router (an MSW-equivalent; MSW's build script is not approved by the workspace-r
 pnpm allowlist, which is Lane 0-owned). Streaming is driven by fake timers; axe-core
 checks zero critical violations on both pages. No test touches the network.
 
-## Local Lighthouse
+## Local Lighthouse — FAKE-BACKEND MODE
 
-Run `pnpm build && pnpm start`, then `npx lighthouse http://localhost:3000/chat`
-and `/papers`. Scoring is local-only and is reported in the lane handoff; CI does
-not assert scores (L1).
+Tests never use a network. For a labelled local audit, start the deterministic
+fake backend (serves the generated fixtures, no live API/LLM), then build/start
+Web with `NEXT_FAKE_BACKEND=1` so `/api/*` is rewritten to it:
+
+```sh
+node apps/web/scripts/fake-backend.mjs
+NEXT_FAKE_BACKEND=1 pnpm --dir apps/web build
+NEXT_FAKE_BACKEND=1 pnpm --dir apps/web start --port 3100
+npx lighthouse http://127.0.0.1:3100/chat --only-categories=performance,accessibility,best-practices,seo
+npx lighthouse http://127.0.0.1:3100/papers --only-categories=performance,accessibility,best-practices,seo
+```
+
+Every score reported in the handoff is from this explicitly labelled mode;
+CI does not assert scores (L1).
