@@ -1,0 +1,17 @@
+{
+  "description": "Hand-computed expected values for synthetic-golden.json + stub-answers.json.",
+  "per_record": {
+    "s1": {"recall_at_1": 0.0, "recall_at_2": 0.5, "recall_at_3": 1.0, "mrr": 0.5, "ndcg_at_3": 0.693426, "faithfulness": 1.0},
+    "s2": {"recall_at_1": 0.0, "recall_at_2": 0.0, "recall_at_3": 0.0, "mrr": 0.0, "ndcg_at_3": 0.0, "faithfulness": 0.0},
+    "s3": {"recall_at_1": 1.0, "recall_at_2": 1.0, "recall_at_3": 1.0, "mrr": 1.0, "ndcg_at_3": 1.0, "faithfulness": 1.0},
+    "s4": {"recall_at_1": 0.0, "recall_at_2": 0.0, "recall_at_3": 0.0, "mrr": 0.0, "ndcg_at_3": 0.0, "faithfulness": 0.0}
+  },
+  "overall": {
+    "recall_at_3": 0.666667,
+    "mrr": 0.5,
+    "ndcg_at_3": 0.564475,
+    "faithfulness": 1.0,
+    "abstention_precision": 0.5
+  },
+  "note": "Retrieval metrics pool answerable ground truth (s1, s3, s4); s4 abstained so it contributes zero. Faithfulness pools records where the stub produced an answer (s1, s3). Abstention precision pools all four records: one true positive (s2) and one false positive (s4)."
+}

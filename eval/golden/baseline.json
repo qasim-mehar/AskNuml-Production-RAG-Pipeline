@@ -1,0 +1,39 @@
+{
+  "backend": "fake",
+  "baseline_id": "mechanics-validation-fake-v1",
+  "corpus": "fixture-corpus-v1",
+  "golden_id": "curated-30-v1",
+  "note": "Measured on fake backend over fixture-corpus-v1 with curated-30-v1. Mechanics validation only, not a quality claim.",
+  "thresholds": {
+    "en": {
+      "abstention_precision": 0.0,
+      "faithfulness": 0.8333333333333334,
+      "mrr": 0.5555555555555556,
+      "ndcg": 0.5846510563492129,
+      "recall_at_k": 0.6666666666666666
+    },
+    "overall": {
+      "abstention_precision": 0.10526315789473684,
+      "faithfulness": 0.7,
+      "mrr": 0.3333333333333333,
+      "ndcg": 0.34303183359788575,
+      "recall_at_k": 0.37037037037037035
+    },
+    "roman_urdu": {
+      "abstention_precision": 0.16666666666666666,
+      "faithfulness": 0.5,
+      "mrr": 0.4444444444444444,
+      "ndcg": 0.4444444444444444,
+      "recall_at_k": 0.4444444444444444
+    },
+    "ur": {
+      "abstention_precision": 0.1,
+      "faithfulness": 0.0,
+      "mrr": 0.0,
+      "ndcg": 0.0,
+      "recall_at_k": 0.0
+    }
+  },
+  "top_k": 5,
+  "variant_name": "hybrid-rerank-on-freshness-off-awaiting-lane-c"
+}
