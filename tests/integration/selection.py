@@ -62,6 +62,10 @@ class AdapterSelection:
             metadata="postgres",
             # swap 7: clock -> core SystemClock (FakeClock stays for pinned tests)
             clock="system",
+            # swap 8: embedder/llm -> Lane E's google-genai adapters (offline here)
+            embedder="google_genai",
+            llm="google_genai",
+            # Lane E ships no real Reranker adapter: lexical/fake stays the default.
             live_providers=live,
         )
 

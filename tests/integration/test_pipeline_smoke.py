@@ -25,7 +25,10 @@ from minio import Minio
 from qdrant_client import QdrantClient
 
 from tests.contracts.port_contracts import (
+    assert_embedder_contract,
+    assert_llm_contract,
     assert_object_store_contract,
+    assert_reranker_contract,
     assert_vector_store_contract,
 )
 from tests.factories import document as sample_document
@@ -34,6 +37,7 @@ from tests.integration.composition import (
     build_fetcher,
     build_metadata_store,
     build_parser,
+    build_providers,
     fixture_path,
 )
 from tests.integration.doubles import MemoryMinioClient
@@ -44,6 +48,7 @@ from uni_rag_core import (
     Chunk,
     Document,
     FakeClock,
+    FakeReranker,
     ImageRef,
     Language,
     ObjectStore,
@@ -66,6 +71,7 @@ from uni_rag_ingestion.crawler.service.crawl import CrawlService
 from uni_rag_ingestion.parsers.adapters.docling_parser import DoclingParser
 from uni_rag_ingestion.parsers.domain.models import ParsedPage, ParsedTable
 from uni_rag_ingestion.parsers.service.parse import parse_document
+from uni_rag_retrieval.adapters.google_genai_provider import GoogleGenaiEmbedder, GoogleGenaiLLM
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _FIXTURE_DIR = (
@@ -217,6 +223,26 @@ def test_parser_swap_uses_docling_adapter(integration_settings: Settings) -> Non
     assert isinstance(parser, DoclingParser)
     parsed = parser.parse(_FIXTURE_DIR / "content-v1.html")
     assert parsed.pages and parsed.pages[0].text
+
+
+def test_provider_swap_uses_google_genai_offline_adapters(
+    integration_settings: Settings,
+) -> None:
+    """Lane E's real adapters pass the contracts; live calls stay off by default."""
+    selection = AdapterSelection.from_settings(integration_settings)
+    assert selection.embedder == "google_genai"
+    assert selection.llm == "google_genai"
+    assert selection.reranker == "fake"
+    assert selection.live_providers is False
+    assert "google_api_key" not in selection.backend_label()
+
+    embedder, reranker, llm = build_providers(selection, integration_settings)
+    assert isinstance(embedder, GoogleGenaiEmbedder)
+    assert isinstance(llm, GoogleGenaiLLM)
+    assert isinstance(reranker, FakeReranker)
+    assert_embedder_contract(embedder)
+    assert_llm_contract(llm)
+    assert_reranker_contract(reranker)
 
 
 def test_clock_swap_uses_system_clock_in_pipeline(integration_settings: Settings) -> None:
