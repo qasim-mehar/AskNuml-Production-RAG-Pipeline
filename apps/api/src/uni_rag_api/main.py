@@ -1,17 +1,15 @@
-"""FastAPI application entry point for the uni-rag API."""
+"""Uvicorn entry point for the fake-backed API.
 
-from fastapi import FastAPI
+Module-level setup is intentional here: this is the process boundary, not a
+library module. Tests import :func:`create_app` directly and stay side-effect
+free.
+"""
 
-app = FastAPI(title="uni-rag API")
+from uni_rag_api.app import create_app
+from uni_rag_api.clock import SystemClock
+from uni_rag_api.config import ApiSettings
+from uni_rag_core import configure_logging
 
-
-@app.get("/health")
-def health() -> dict[str, str]:
-    """Liveness probe."""
-    return {"status": "ok", "service": "uni-rag-api"}
-
-
-@app.get("/ready")
-def ready() -> dict[str, str]:
-    """Readiness probe."""
-    return {"status": "ready"}
+settings = ApiSettings()
+configure_logging(settings.log_level)
+app = create_app(settings, clock=SystemClock())
