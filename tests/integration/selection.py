@@ -50,6 +50,8 @@ class AdapterSelection:
         return cls(
             # swap 1: fetcher -> Lane A's HttpFetcher
             fetcher="http",
+            # swap 2: parsing -> Lane B's DoclingParser (fixture reader fallback)
+            parser="docling",
             live_providers=live,
         )
 

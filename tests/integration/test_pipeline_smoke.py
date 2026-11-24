@@ -31,6 +31,7 @@ from uni_rag_ingestion.chunking.service.chunk import Chunker
 from uni_rag_ingestion.crawler.adapters.http_fetcher import HttpFetcher
 from uni_rag_ingestion.crawler.domain import CrawlerConfig
 from uni_rag_ingestion.crawler.service.crawl import CrawlService
+from uni_rag_ingestion.parsers.adapters.docling_parser import DoclingParser
 from uni_rag_ingestion.parsers.domain.models import ParsedPage, ParsedTable
 from uni_rag_ingestion.parsers.service.parse import parse_document
 
@@ -172,6 +173,17 @@ def _chunkable(
 def _rows(table: ParsedTable) -> tuple[tuple[str, ...], ...]:
     """Return a table as header-plus-rows cells."""
     return (table.header, *table.rows)
+
+
+def test_parser_swap_uses_docling_adapter(integration_settings: Settings) -> None:
+    """Lane B's adapter is real; Docling's absence uses the sanctioned reader."""
+    assert AdapterSelection.ci_default().parser == "fixture"
+    selection = AdapterSelection.from_settings(integration_settings)
+    assert selection.parser == "docling"
+    parser = build_parser(selection)
+    assert isinstance(parser, DoclingParser)
+    parsed = parser.parse(_FIXTURE_DIR / "content-v1.html")
+    assert parsed.pages and parsed.pages[0].text
 
 
 @pytest.mark.integration
