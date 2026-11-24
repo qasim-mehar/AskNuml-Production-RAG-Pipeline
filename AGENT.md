@@ -4,7 +4,7 @@ Binding rules for every coding agent on `uni-rag`. Read this fully before touchi
 
 ## 1. What this project is
 
-A production-grade RAG system for university students. Students ask text questions (English, Urdu, Roman Urdu) and receive cited answers plus images — especially past-paper pages. Knowledge comes from the university website (HTML and PDFs) and a past-paper archive.
+A production-grade RAG system for university students. Students ask text questions (English, Urdu, Roman Urdu) and receive cited answers plus images, especially past-paper pages. Knowledge comes from the university website (HTML and PDFs) and a past-paper archive.
 
 The product exists to prove measurable accuracy and precision. Chunking, retrieval, search and evaluation are the showcase. Every decision must be defensible with numbers.
 
@@ -19,7 +19,7 @@ Work is split into lanes. Each lane runs in its own conversation, on its own bra
 | B | Parsing | `packages/ingestion/parsers/` |
 | C | Chunking and enrichment | `packages/ingestion/chunking/`, `packages/ingestion/enrichment/` |
 | D | Indexing and storage | `packages/indexing/`, `infra/migrations/` |
-| E | Retrieval | `packages/retrieval/` |
+| E | Retrieval | `packages/retrieval/` (includes planned `graph/` and provider adapters in `packages/retrieval/src/uni_rag_retrieval/adapters/`) |
 | F | Evaluation | `packages/eval/`, `eval/` |
 | G | API | `apps/api/` |
 | H | Web | `apps/web/` |
@@ -41,7 +41,7 @@ Every change names the laws it touches. These definitions are authoritative.
 - **L2 Layering.** `apps` depend on `packages`, never the reverse. Domain code never imports infrastructure. Enforced by import-linter in CI.
 - **L3 Ports and adapters.** LLM, embedder, reranker, vector store, object store, HTTP fetcher and clock all sit behind `Protocol` classes in `packages/core/src/uni_rag_core/ports/`. An in-memory fake ships for each.
 - **L4 Determinism.** Fakes, seeds and tests are deterministic. The same inputs produce the same outputs; no wall-clock or random values leak into results.
-- **L5 Provenance.** Every answer is traceable to a real source URL and `last_crawled`. Cite or abstain — never invent a deadline, fee or date.
+- **L5 Provenance.** Every answer is traceable to a real source URL and `last_crawled`. Cite or abstain; never invent a deadline, fee or date.
 - **L6 Chunk metadata.** `Chunk` carries `chunk_id`, `doc_id`, `source_url`, `heading_path`, `content_hash`, `last_crawled`, `doc_type`, `version`, and an optional `page` and `image_ref`.
 - **L7 Language parity.** English, Urdu and Roman Urdu are first-class everywhere: ingestion, retrieval, evaluation and UI.
 - **L8 Config.** One typed `pydantic-settings` module (`uni_rag_core.config.settings`). No `os.environ` reads anywhere else. Settings fail fast when required values are missing.
@@ -51,6 +51,9 @@ Every change names the laws it touches. These definitions are authoritative.
 - **L12 Tests before features.** Fixtures first, then behaviour tests. Every port adapter must pass the shared contract suite in `tests/contracts/`.
 - **L13 No silent degradation.** When evidence is weak, abstain explicitly with a next step rather than guessing.
 - **L14 Lane ownership.** CODEOWNERS maps every directory to its lane. Only Lane 0 touches `packages/core/`.
+- **L15 Framework containment.** LangChain and LangGraph imports are allowed only in `packages/retrieval/src/uni_rag_retrieval/graph/` (planned) and `packages/retrieval/src/uni_rag_retrieval/adapters/` (provider adapters planned). The framework-free zones in §4 still apply. Framework types never cross a port. Lane 0 adds the import-linter contract that enforces this (see `docs/PARKING_LOT.md`).
+- **L16 Graph nodes earn their place.** Every LangGraph node and edge has a named purpose and an eval row showing its effect. Nodes with no measurable gain are removed.
+- **L17 Provider parity.** Every `LLM` and `Embedder` adapter passes the shared contract test. No provider-specific behavior leaks past its adapter.
 
 *(The L9 numbering gap is historical; there is no second L9.)*
 
@@ -73,6 +76,13 @@ Every change names the laws it touches. These definitions are authoritative.
 - `pnpm`, strict TypeScript, ESLint, Vitest. No `any`.
 - `lib/` holds pure functions and the API client (no React). `components/` is presentational (no fetching). `features/` composes UI with hooks.
 
+**Frameworks**
+
+- LangGraph runs real control flow only: retry on weak retrieval, clarification on a missing filter, multi-hop, abstain and checkpointed follow-up. Route, filter, search, rerank and answer stay linear. Department is a metadata filter and a config row, never a graph branch.
+- LangChain is a utility for splitters, loaders and small integration helpers inside the retrieval adapters allowed by L15. No chains, retriever abstractions or LangChain types cross a port.
+- `google-genai` is an adapter for `LLM`, `Embedder` and page images. Page-image handling lives inside the adapter: use the existing `ImageRef` schema and `ObjectStore` port for stored page images, and add no new core port (L3). A second provider must pass the same contract test; comparison is an eval run, not a graph branch.
+- `packages/core/`, crawler, parsing, chunking, indexing and eval import neither framework. Graph nodes call plain service functions, so logic is unit-testable without the graph.
+
 **Git**
 
 - Conventional commits with a campaign tag: `type(scope): summary [campaign: name]`.
@@ -81,7 +91,6 @@ Every change names the laws it touches. These definitions are authoritative.
 
 ## 5. Testing standards
 
-- Fixtures first. Every adapter passes the shared contract test for its port (`tests/contracts/`).
 - Pin behaviour, not implementation. Test names read like specs.
 - Unit tests use fakes. Integration tests use docker compose. Neither touches the real internet or a paid LLM.
 - Retrieval quality is measured by the eval harness, never by eyeballing.
@@ -94,7 +103,7 @@ A task is done only when all of these are true:
 2. The laws touched are named and complied with.
 3. Tests pin the new behaviour.
 4. A fresh review subagent has done a full quality pass; its findings are resolved or logged.
-5. Green gates pass in order: `make setup`, `make lint`, `make type`, `make test`, `make gate`, `make up`.
+5. Green gates pass in order: `make setup`, `make lint`, `make type`, `make test`, `make gate`, `make up`. The import-linter framework contract passes as part of `make gate`; Lane 0 must add it first (see `docs/PARKING_LOT.md`).
 6. The commit follows the required format and `docs/PROGRESS.md` is updated by Lane 0.
 7. A handoff note says what shipped, what changed in contracts, and what is next.
 
