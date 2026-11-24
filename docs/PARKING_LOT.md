@@ -24,7 +24,8 @@ promoted by an ADR (L1).
 - [2026-11-24] Lane B: no PDF/HTML page renderer is available offline, so digital pages get a deterministic placeholder PNG (explicit caption) instead of a rendered image until a renderer is added.
 
 Promotion of any item into scope requires an ADR. This campaign's promotions are
-recorded in ADR 0002 (Lane E), ADR 0003 (Lanes A and B) and ADR 0004 (Lane H).
+recorded in ADR 0002 (Lane E), ADR 0003 (Lanes A and B), ADR 0004 (Lane H) and
+ADRs 0005–0009 (Lane 0 contracts wave).
 
 ## Merge-wave handoff lines (2026-11-24)
 
@@ -47,3 +48,8 @@ recorded in ADR 0002 (Lane E), ADR 0003 (Lanes A and B) and ADR 0004 (Lane H).
 - [2026-11-24] Lane H: Scaling, deployment and horizontal concerns.
 - [2026-11-24] Lane D: Document-level soft-delete method in the metadata store.
 - [2026-11-24] Lane 0: Windows make parity (run recipes directly when the binary is absent).
+- [2026-11-24] Lane 0: feedback persistence, golden-set ingestion and any feedback auth remain parked; ADR 0009 grants only the local-only `202` echo route with structured logging (Lane F milestone).
+- [2026-11-24] Lane 0: SSE envelopes (`TokenEvent`, `CitationsEvent`) stay API-local by ADR 0009; no core port or schema promotion.
+- [2026-11-24] Lane 0: lockfile regeneration stays parked until a network-enabled host; ADR 0005 is the authoritative pin inventory. Docling remains unpinned and undeclared (candidate `2.152.0` recorded from the ledger; no wheel resolvable offline).
+- [2026-11-24] Lane 0: lane shims retire in each lane's next milestone, not this wave — A's `CrawlerConfig`/`conditional_headers_for` and local `SystemClock`, B's `PaperMetadata`/parser-local `ParsedDocument`, C's chunking-local `ParsedDocument` and text atomic-unit reasons, E's last-crawled/next-step text footers, G's `ApiSettings`/API-local error subclasses, H's strict TS mirrors and `core-emitted.json` fixture (ADRs 0006–0009).
+- [2026-11-24] Lane 0: generation of a real page-image renderer and a live `/api/images/{ref_id}` proxy implementation stay parked; `ImageRef.image_url` only documents the convention (ADR 0007).
