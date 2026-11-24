@@ -58,6 +58,8 @@ class AdapterSelection:
             vector_store="qdrant",
             # swap 5: object store -> Lane D's MinIO adapter (compose endpoint)
             object_store="minio",
+            # swap 6: metadata -> Lane D's Postgres adapter + Alembic baseline
+            metadata="postgres",
             live_providers=live,
         )
 

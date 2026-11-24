@@ -18,6 +18,8 @@ from typing import cast
 
 import httpx
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from minio import Minio
 from qdrant_client import QdrantClient
 
@@ -26,7 +28,13 @@ from tests.contracts.port_contracts import (
     assert_vector_store_contract,
 )
 from tests.factories import document as sample_document
-from tests.integration.composition import build_context, build_fetcher, build_parser, fixture_path
+from tests.integration.composition import (
+    build_context,
+    build_fetcher,
+    build_metadata_store,
+    build_parser,
+    fixture_path,
+)
 from tests.integration.doubles import MemoryMinioClient
 from tests.integration.provenance import attach_provenance
 from tests.integration.selection import AdapterSelection
@@ -43,6 +51,7 @@ from uni_rag_core import (
     VectorStore,
 )
 from uni_rag_indexing.adapters.minio_object_store import MinioObjectStore
+from uni_rag_indexing.adapters.postgres_metadata_store import PostgresMetadataStore
 from uni_rag_indexing.adapters.qdrant_vector_store import QdrantVectorStore
 from uni_rag_ingestion.chunking.domain.model import Block, BlockKind
 from uni_rag_ingestion.chunking.domain.model import ParsedDocument as ChunkableDocument
@@ -56,6 +65,7 @@ from uni_rag_ingestion.parsers.adapters.docling_parser import DoclingParser
 from uni_rag_ingestion.parsers.domain.models import ParsedPage, ParsedTable
 from uni_rag_ingestion.parsers.service.parse import parse_document
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 _FIXTURE_DIR = (
     Path(__file__).resolve().parents[2]
     / "packages"
@@ -205,6 +215,21 @@ def test_parser_swap_uses_docling_adapter(integration_settings: Settings) -> Non
     assert isinstance(parser, DoclingParser)
     parsed = parser.parse(_FIXTURE_DIR / "content-v1.html")
     assert parsed.pages and parsed.pages[0].text
+
+
+def test_metadata_swap_uses_postgres_adapter_and_linear_history(
+    integration_settings: Settings,
+) -> None:
+    """The Postgres adapter is selected and Alembic has one linear head."""
+    selection = AdapterSelection.from_settings(integration_settings)
+    assert selection.metadata == "postgres"
+    store = build_metadata_store(selection, integration_settings, clock=SystemClock())
+    assert isinstance(store, PostgresMetadataStore)
+
+    config = Config(str(_REPO_ROOT / "infra" / "migrations" / "alembic.ini"))
+    config.set_main_option("script_location", str(_REPO_ROOT / "infra" / "migrations"))
+    script = ScriptDirectory.from_config(config)
+    assert len(script.get_heads()) == 1
 
 
 def test_object_store_swap_uses_minio_adapter(integration_settings: Settings) -> None:
