@@ -1,0 +1,147 @@
+{
+  "registry_id": "fixture-corpus-v1",
+  "documents": [
+    {
+      "doc_id": "doc-cs101-outline",
+      "source_path": "tests/fixtures/html/course-page.html",
+      "source_url": "https://example.edu.pk/courses/cs-101/outline",
+      "doc_type": "web_page",
+      "version": "v1",
+      "last_crawled": "2026-01-01T00:00:00+00:00",
+      "chunks": [
+        {
+          "chunk_id": "doc-cs101-outline::c00",
+          "heading_path": ["CS-101: Introduction to Computer Science"],
+          "text": "This course introduces programming, algorithms, and computing fundamentals.",
+          "language": "en"
+        },
+        {
+          "chunk_id": "doc-cs101-outline::c01",
+          "heading_path": ["Course Information"],
+          "text": "Instructor: Dr. Ayesha Khan. Credits: 4. Semester: Fall 2026.",
+          "language": "en"
+        },
+        {
+          "chunk_id": "doc-cs101-outline::c02",
+          "heading_path": ["Learning Outcomes"],
+          "text": "Write and debug programs in Python. Analyze the complexity of simple algorithms.",
+          "language": "en"
+        },
+        {
+          "chunk_id": "doc-cs101-outline::c03",
+          "heading_path": ["Assessment"],
+          "text": "Grades are based on assignments, a midterm exam, and a final project.",
+          "language": "en"
+        },
+        {
+          "chunk_id": "doc-cs101-outline::c04",
+          "heading_path": ["Assessment", "Weekly schedule"],
+          "text": "View the weekly schedule: /courses/cs-101/schedule.",
+          "language": "en"
+        }
+      ]
+    },
+    {
+      "doc_id": "doc-faculty-directory",
+      "source_path": "tests/fixtures/html/faculty-page.html",
+      "source_url": "https://example.edu.pk/department/faculty",
+      "doc_type": "web_page",
+      "version": "v1",
+      "last_crawled": "2025-11-01T00:00:00+00:00",
+      "chunks": [
+        {
+          "chunk_id": "doc-faculty-directory::c00",
+          "heading_path": ["Faculty Directory"],
+          "text": "The department welcomes inquiries from prospective students and researchers.",
+          "language": "en"
+        },
+        {
+          "chunk_id": "doc-faculty-directory::c01",
+          "heading_path": ["Professors", "Dr. Ayesha Khan"],
+          "text": "Professor of Computer Science. Research interests: information retrieval and NLP. Read the full profile: /faculty/akhan.",
+          "language": "en"
+        },
+        {
+          "chunk_id": "doc-faculty-directory::c02",
+          "heading_path": ["Professors", "Dr. Muhammad Ali"],
+          "text": "Associate Professor. Research interests: distributed systems and databases. Read the full profile: /faculty/mali.",
+          "language": "en"
+        },
+        {
+          "chunk_id": "doc-faculty-directory::c03",
+          "heading_path": ["Contact"],
+          "text": "Email: cs@example.edu.pk. Phone: +92-42-1234-5678. Contact the department: /department/contact.",
+          "language": "en"
+        }
+      ]
+    },
+    {
+      "doc_id": "doc-announcements-2026",
+      "source_path": "tests/fixtures/html/announcements-page.html",
+      "source_url": "https://example.edu.pk/news/announcements",
+      "doc_type": "web_page",
+      "version": "v1",
+      "last_crawled": "2025-12-01T00:00:00+00:00",
+      "chunks": [
+        {
+          "chunk_id": "doc-announcements-2026::c00",
+          "heading_path": ["Announcements"],
+          "text": "Important updates for the Fall 2026 semester.",
+          "language": "en"
+        },
+        {
+          "chunk_id": "doc-announcements-2026::c01",
+          "heading_path": ["September 2026", "Midterm schedule released"],
+          "text": "The midterm exam for CS-101 will be held on October 17, 2026. Read the full notice: /announcements/midterm-2026.",
+          "language": "en"
+        },
+        {
+          "chunk_id": "doc-announcements-2026::c02",
+          "heading_path": ["September 2026", "Library hours extended"],
+          "text": "The main library will remain open until midnight during exam week.",
+          "language": "en"
+        },
+        {
+          "chunk_id": "doc-announcements-2026::c03",
+          "heading_path": ["August 2026", "New student orientation"],
+          "text": "Orientation for incoming students begins on August 24, 2026. See event details: /events/orientation.",
+          "language": "en"
+        }
+      ]
+    },
+    {
+      "doc_id": "doc-cs101-outline-pdf",
+      "source_path": "tests/fixtures/pdf/digital-course-outline.pdf",
+      "source_url": "https://example.edu.pk/courses/cs-101/outline.pdf",
+      "doc_type": "pdf",
+      "version": "v1",
+      "last_crawled": "2025-10-01T00:00:00+00:00",
+      "chunks": [
+        {
+          "chunk_id": "doc-cs101-outline-pdf::c00",
+          "heading_path": ["CS-101 Course Outline"],
+          "text": "CS-101 Course Outline",
+          "page": 1,
+          "language": "en"
+        }
+      ]
+    },
+    {
+      "doc_id": "doc-past-paper-page",
+      "source_path": "tests/fixtures/pdf/scanned-past-paper-page.png",
+      "source_url": "https://example.edu.pk/archive/past-papers/cs-101-2025/page-1.png",
+      "doc_type": "past_paper",
+      "version": "v1",
+      "last_crawled": "2025-09-01T00:00:00+00:00",
+      "chunks": [
+        {
+          "chunk_id": "doc-past-paper-page::c00",
+          "heading_path": ["Past paper page"],
+          "text": "Scanned past-paper page image (fixture placeholder).",
+          "page": 1,
+          "language": "en"
+        }
+      ]
+    }
+  ]
+}

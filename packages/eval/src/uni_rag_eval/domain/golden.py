@@ -1,0 +1,210 @@
+"""Golden records, fixture corpus registry, and pure parsing/validation (L7, L12).
+
+No file I/O and no wall-clock live here: callers supply parsed payloads and the
+set of fixture paths that were verified to exist.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Collection, Mapping
+from datetime import datetime
+from hashlib import sha256
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ValidationError as PydanticValidationError
+
+from uni_rag_core.errors import ValidationError as EvaluationValidationError
+from uni_rag_core.schemas import Chunk, DocType, Language
+
+REQUIRED_LANGUAGES: tuple[Language, ...] = (
+    Language.EN,
+    Language.UR,
+    Language.ROMAN_URDU,
+)
+
+
+class GoldenRecord(BaseModel):
+    """One curated question and the answer/retrieval facts the harness must check."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    language: Language
+    query: str
+    expected_filters: dict[str, str] = Field(default_factory=dict)
+    expected_chunk_ids: list[str] = Field(default_factory=list)
+    expected_answer_gist: str
+    expected_abstain: bool = False
+
+
+class GoldenSet(BaseModel):
+    """A versioned, language-balanced collection of golden records."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: int
+    golden_id: str
+    description: str
+    records: list[GoldenRecord]
+
+
+class FixtureChunk(BaseModel):
+    """A chunk definition grounded in one fixture document."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    chunk_id: str
+    heading_path: list[str] = Field(default_factory=list)
+    text: str
+    page: int | None = None
+    language: Language = Language.EN
+
+
+class FixtureDocument(BaseModel):
+    """A fixture document and the chunk ids derived from it."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    doc_id: str
+    source_path: str
+    source_url: str
+    doc_type: DocType
+    version: str
+    last_crawled: str
+    chunks: list[FixtureChunk]
+
+
+class FixtureRegistry(BaseModel):
+    """The curated fixture corpus, used as the fake backend's corpus."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    registry_id: str
+    documents: list[FixtureDocument]
+
+
+def load_golden_set(payload: Mapping[str, Any]) -> GoldenSet:
+    """Parse a golden-set payload, raising a typed error on malformed input."""
+    try:
+        return GoldenSet.model_validate(dict(payload))
+    except PydanticValidationError as exc:
+        raise EvaluationValidationError(
+            "Invalid golden set payload", context={"errors": exc.errors()}
+        ) from exc
+
+
+def load_fixture_registry(payload: Mapping[str, Any]) -> FixtureRegistry:
+    """Parse a fixture registry payload, raising a typed error on malformed input."""
+    try:
+        return FixtureRegistry.model_validate(dict(payload))
+    except PydanticValidationError as exc:
+        raise EvaluationValidationError(
+            "Invalid fixture registry payload", context={"errors": exc.errors()}
+        ) from exc
+
+
+def validate_golden_set(
+    golden_set: GoldenSet,
+    registry: FixtureRegistry,
+    verified_source_paths: Collection[str],
+) -> None:
+    """Validate ids, abstention consistency, corpus references and L7 balance.
+
+    Raises :class:`ValidationError` on the first invariant breach rather than
+    skipping malformed records (L11/L13).
+    """
+    declared_paths = [doc.source_path for doc in registry.documents]
+    missing_paths = sorted(set(declared_paths) - set(verified_source_paths))
+    if missing_paths:
+        raise EvaluationValidationError(
+            "Fixture sources referenced by the registry do not exist",
+            context={"missing_paths": missing_paths},
+        )
+
+    doc_ids = [doc.doc_id for doc in registry.documents]
+    if len(doc_ids) != len(set(doc_ids)):
+        raise EvaluationValidationError("Fixture registry has duplicate doc ids")
+    chunk_ids = {chunk.chunk_id: doc.doc_id for doc in registry.documents for chunk in doc.chunks}
+    if len(chunk_ids) != sum(len(doc.chunks) for doc in registry.documents):
+        raise EvaluationValidationError("Fixture registry has duplicate chunk ids")
+
+    seen: set[str] = set()
+    counts: dict[Language, int] = {language: 0 for language in REQUIRED_LANGUAGES}
+    for record in golden_set.records:
+        if record.id in seen:
+            raise EvaluationValidationError(
+                "Duplicate golden record id", context={"record_id": record.id}
+            )
+        seen.add(record.id)
+        if not record.query.strip() or not record.expected_answer_gist.strip():
+            raise EvaluationValidationError(
+                "Golden query and answer gist must be non-empty", context={"record_id": record.id}
+            )
+        if record.expected_abstain and record.expected_chunk_ids:
+            raise EvaluationValidationError(
+                "An abstain record cannot expect retrievable evidence",
+                context={"record_id": record.id},
+            )
+        if not record.expected_abstain and not record.expected_chunk_ids:
+            raise EvaluationValidationError(
+                "An answerable record must name at least one expected chunk",
+                context={"record_id": record.id},
+            )
+        expected_docs = {chunk_ids.get(chunk_id) for chunk_id in record.expected_chunk_ids}
+        if None in expected_docs:
+            unknown = sorted(
+                chunk_id for chunk_id in record.expected_chunk_ids if chunk_id not in chunk_ids
+            )
+            raise EvaluationValidationError(
+                "Golden record references a chunk outside the fixture corpus",
+                context={"record_id": record.id, "unknown_chunk_ids": unknown},
+            )
+        filter_doc = record.expected_filters.get("doc_id")
+        if filter_doc is not None and filter_doc not in expected_docs:
+            raise EvaluationValidationError(
+                "Golden filter doc_id disagrees with expected chunks",
+                context={"record_id": record.id, "filter_doc_id": filter_doc},
+            )
+        counts[record.language] = counts.get(record.language, 0) + 1
+
+    absent = sorted(language.value for language, count in counts.items() if count == 0)
+    if absent:
+        raise EvaluationValidationError(
+            "Every supported language needs golden questions (L7)",
+            context={"absent_languages": absent},
+        )
+    values = list(counts.values())
+    if max(values) - min(values) > 1:
+        raise EvaluationValidationError(
+            "Golden set is not balanced across languages (L7)", context={"counts": counts}
+        )
+
+
+def chunks_from_registry(registry: FixtureRegistry) -> list[Chunk]:
+    """Build core ``Chunk`` objects from the fixture registry (L6 fields included)."""
+    chunks: list[Chunk] = []
+    for doc in registry.documents:
+        crawled = datetime.fromisoformat(doc.last_crawled)
+        if crawled.tzinfo is None:
+            raise EvaluationValidationError(
+                "Fixture last_crawled must be timezone-aware",
+                context={"doc_id": doc.doc_id, "last_crawled": doc.last_crawled},
+            )
+        for chunk in doc.chunks:
+            chunks.append(
+                Chunk(
+                    chunk_id=chunk.chunk_id,
+                    doc_id=doc.doc_id,
+                    source_url=doc.source_url,
+                    heading_path=list(chunk.heading_path),
+                    content_hash=sha256(chunk.text.encode("utf-8")).hexdigest(),
+                    last_crawled=crawled,
+                    doc_type=doc.doc_type,
+                    version=doc.version,
+                    text=chunk.text,
+                    language=chunk.language,
+                    page=chunk.page,
+                )
+            )
+    return chunks

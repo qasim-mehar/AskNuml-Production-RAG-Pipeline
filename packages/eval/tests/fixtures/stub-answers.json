@@ -1,0 +1,25 @@
+{
+  "description": "Deterministic stub retrieval outputs for synthetic-golden.json.",
+  "answers": {
+    "s1": {
+      "cited_chunk_ids": ["x", "b", "a", "c"],
+      "snippets": ["unrelated snippet", "Alpha evidence", "more alpha evidence", "c snippet"],
+      "abstained": false
+    },
+    "s2": {
+      "cited_chunk_ids": [],
+      "snippets": [],
+      "abstained": true
+    },
+    "s3": {
+      "cited_chunk_ids": ["d"],
+      "snippets": ["Gamma evidence"],
+      "abstained": false
+    },
+    "s4": {
+      "cited_chunk_ids": [],
+      "snippets": [],
+      "abstained": true
+    }
+  }
+}

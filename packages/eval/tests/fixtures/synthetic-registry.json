@@ -1,0 +1,20 @@
+{
+  "registry_id": "synthetic-corpus-v1",
+  "documents": [
+    {
+      "doc_id": "doc-synthetic",
+      "source_path": "tests/fixtures/html/course-page.html",
+      "source_url": "https://example.invalid/synthetic",
+      "doc_type": "web_page",
+      "version": "v1",
+      "last_crawled": "2026-01-01T00:00:00+00:00",
+      "chunks": [
+        {"chunk_id": "a", "heading_path": ["A"], "text": "Alpha evidence"},
+        {"chunk_id": "b", "heading_path": ["B"], "text": "Beta evidence"},
+        {"chunk_id": "c", "heading_path": ["C"], "text": "Gamma evidence"},
+        {"chunk_id": "d", "heading_path": ["D"], "text": "Delta evidence"},
+        {"chunk_id": "e", "heading_path": ["E"], "text": "Epsilon evidence"}
+      ]
+    }
+  ]
+}

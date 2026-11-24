@@ -11,6 +11,13 @@ dependencies = [
     "uni-rag-core>=0.1.0",
 ]
 
+# Live providers are opt-in per ADR 0002: the opt-in setting is pending a Lane 0
+# CONTRACT-CHANGE PR, so SDKs are optional extras rather than default deps.
+# They are imported lazily inside adapters/ only (L15) and never in CI (L4).
+[project.optional-dependencies]
+google = ["google-genai>=1.0"]
+openai = ["openai>=1.0"]
+
 [tool.uv.sources]
 uni-rag-core = { workspace = true }
 
