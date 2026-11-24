@@ -1,8 +1,8 @@
-# mypy: disable-error-code=import-untyped
-"""Scaffold state for future LangGraph control flow (L16).
+"""Scaffold state for LangGraph control flow (L16).
 
 Plain TypedDict only: no LangGraph symbols are imported, and no graph type is
-used by the shipped linear pipeline.
+used by the shipped linear pipeline. The retry fields thread the capped loop's
+counters and rewrite audit trail when a graph is wired later.
 """
 
 from __future__ import annotations
@@ -22,5 +22,10 @@ class RetrievalState(TypedDict, total=False):
     scored: list[ScoredChunk]
     answer: Answer | None
     attempt: int
+    max_attempts: int
+    top_score: float
+    strength_ok: bool
+    rewritten_text: str | None
+    rewrite_history: list[str]
     needs_clarification: bool
     trace_id: str

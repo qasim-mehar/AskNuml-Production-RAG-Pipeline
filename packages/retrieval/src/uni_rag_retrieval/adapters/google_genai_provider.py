@@ -1,4 +1,3 @@
-# mypy: disable-error-code=import-untyped
 """google-genai adapter for ``LLM``, ``Embedder`` and page images (L3, L15, L17).
 
 The SDK is imported lazily inside ``live_*`` factories, which only the
@@ -13,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import importlib
 import math
+import sys
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -22,6 +22,28 @@ from uni_rag_core.schemas import ImageRef
 CompletionTransport = Callable[[str, str | None], str]
 EmbeddingTransport = Callable[[Sequence[str], int], list[list[float]]]
 ImageTransport = Callable[[bytes, str], list[float]]
+
+
+class GoogleGenaiSDKError(Exception):
+    """Offline stand-in for a google-genai SDK failure (L11).
+
+    The SDK is an optional extra and is never installed in CI, so transports
+    exercised by tests raise this typed marker instead of a real SDK error.
+    """
+
+
+def _sdk_error_types() -> tuple[type[BaseException], ...]:
+    """Return the real SDK exception types when loaded, plus the offline marker.
+
+    Resolved from ``sys.modules`` only, so importing this adapter never pulls in
+    the optional SDK (L15). Unexpected Python errors are deliberately not caught:
+    they must propagate instead of being swallowed (L11).
+    """
+    errors = sys.modules.get("google.genai.errors")
+    api_error = getattr(errors, "APIError", None) if errors is not None else None
+    if isinstance(api_error, type) and issubclass(api_error, BaseException):
+        return (api_error, GoogleGenaiSDKError)
+    return (GoogleGenaiSDKError,)
 
 
 def _hash_vector(payload: bytes, dimension: int) -> list[float]:
@@ -128,7 +150,7 @@ class GoogleGenaiLLM:
             result = self._transport(prompt, system)
         except PortError:
             raise
-        except Exception as exc:
+        except _sdk_error_types() as exc:
             msg = "google-genai completion failed"
             raise PortError(msg, context={"error": str(exc)}) from exc
         if not result.strip():
@@ -158,7 +180,7 @@ class GoogleGenaiEmbedder:
             vectors = self._transport(texts, self._dimension)
         except PortError:
             raise
-        except Exception as exc:
+        except _sdk_error_types() as exc:
             msg = "google-genai embedding failed"
             raise PortError(msg, context={"error": str(exc)}) from exc
         return _conform_vectors(
@@ -196,7 +218,7 @@ class GoogleGenaiPageImages:
             return self._transport(data, ref.mime_type)
         except PortError:
             raise
-        except Exception as exc:
+        except _sdk_error_types() as exc:
             msg = "google-genai page-image embedding failed"
             raise PortError(msg, context={"ref_id": ref.ref_id, "error": str(exc)}) from exc
 
@@ -205,6 +227,7 @@ __all__ = [
     "GoogleGenaiEmbedder",
     "GoogleGenaiLLM",
     "GoogleGenaiPageImages",
+    "GoogleGenaiSDKError",
     "live_completion_transport",
     "live_embedding_transport",
     "live_image_transport",

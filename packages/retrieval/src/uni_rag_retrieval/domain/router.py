@@ -1,4 +1,3 @@
-# mypy: disable-error-code=import-untyped
 """Pure language/intent classification and filter extraction (L7, L9).
 
 The LLM port is optional: when a provider declines or returns anything other
