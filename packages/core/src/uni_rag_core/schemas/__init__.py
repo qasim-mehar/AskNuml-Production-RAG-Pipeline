@@ -4,7 +4,7 @@ from uni_rag_core.schemas.answer import Answer, Citation
 from uni_rag_core.schemas.chunk import Chunk, ImageRef, PayloadValue, ScoredChunk, VectorHit
 from uni_rag_core.schemas.document import Document
 from uni_rag_core.schemas.enums import DocType, Language
-from uni_rag_core.schemas.fetch import FetchResult
+from uni_rag_core.schemas.fetch import FetchResult, RedirectHop
 from uni_rag_core.schemas.past_paper import PastPaperQuestion
 from uni_rag_core.schemas.query import Query
 
@@ -20,6 +20,7 @@ __all__ = [
     "PastPaperQuestion",
     "PayloadValue",
     "Query",
+    "RedirectHop",
     "ScoredChunk",
     "VectorHit",
 ]

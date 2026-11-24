@@ -115,6 +115,7 @@ def fetch_result() -> FetchResult:
         status_code=200,
         content_type="text/html; charset=utf-8",
         body=b"<html><body>hello</body></html>",
+        headers={"etag": '"v1"', "content-type": "text/html; charset=utf-8"},
     )
 
 

@@ -4,6 +4,7 @@ Every Lane adapter must pass the corresponding ``assert_*_contract`` helper
 with its own implementation, not just with the in-memory fake.
 """
 
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 
 from tests.factories import chunk, fetch_result
@@ -18,7 +19,7 @@ from uni_rag_core import (
     StorageError,
     VectorStore,
 )
-from uni_rag_core.schemas import Chunk, FetchResult
+from uni_rag_core.schemas import Chunk, FetchResult, RedirectHop
 
 
 def assert_embedder_contract(embedder: Embedder) -> None:
@@ -84,19 +85,43 @@ def assert_object_store_contract(store: ObjectStore) -> None:
 
 
 def assert_fetcher_contract(fetcher: Fetcher) -> None:
-    """Fetcher returns a FetchResult and signals unknown URLs with FetchError."""
+    """Fetcher returns a FetchResult with v2 metadata and signals unknown URLs."""
     assert isinstance(fetcher, Fetcher)
     registered: FetchResult = fetch_result()
     result = fetcher.fetch(registered.url)
     assert result.status_code == 200
     assert result.final_url
     assert isinstance(result.body, bytes)
+    assert isinstance(result.headers, Mapping)
+    assert all(
+        isinstance(key, str) and isinstance(value, str) for key, value in result.headers.items()
+    )
+    assert isinstance(result.redirect_chain, Sequence)
+    for hop in result.redirect_chain:
+        assert isinstance(hop, RedirectHop)
+        assert hop.url
+        assert isinstance(hop.status_code, int)
     try:
         fetcher.fetch("https://example.invalid/unregistered")
     except FetchError:
         pass
     else:
         raise AssertionError("unregistered URL must raise FetchError")
+
+
+def assert_fetcher_v2_contract(fetcher: Fetcher) -> None:
+    """Optional v2 capability: a conditional validator round-trips through the port.
+
+    Called only for the fakes and for adapters that migrated off the v1 shim;
+    lane adapters keep passing ``assert_fetcher_contract`` until they migrate.
+    """
+    registered: FetchResult = fetch_result()
+    first = fetcher.fetch(registered.url)
+    etag = next(value for key, value in first.headers.items() if key.lower() == "etag")
+    second = fetcher.fetch(registered.url, request_headers={"If-None-Match": etag})
+    assert second.status_code == 304
+    assert second.body == b""
+    assert second.headers == first.headers
 
 
 def assert_clock_contract(clock: Clock) -> None:

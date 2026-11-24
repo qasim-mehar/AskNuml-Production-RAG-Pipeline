@@ -4,6 +4,7 @@ from tests.contracts.port_contracts import (
     assert_clock_contract,
     assert_embedder_contract,
     assert_fetcher_contract,
+    assert_fetcher_v2_contract,
     assert_llm_contract,
     assert_object_store_contract,
     assert_reranker_contract,
@@ -43,6 +44,26 @@ def test_object_store_fake_contract() -> None:
 
 def test_fetcher_fake_contract() -> None:
     assert_fetcher_contract(FakeFetcher({fetch_result().url: fetch_result()}))
+
+
+def test_fetcher_fake_v2_contract() -> None:
+    assert_fetcher_v2_contract(FakeFetcher({fetch_result().url: fetch_result()}))
+
+
+def test_fetcher_fake_redirect_chain_is_deterministic() -> None:
+    registered = fetch_result().model_copy(update={"final_url": "https://example.edu/final"})
+    fetcher = FakeFetcher({registered.url: registered})
+    first = fetcher.fetch(registered.url)
+    second = fetcher.fetch(registered.url)
+    assert first.redirect_chain == second.redirect_chain
+    assert [hop.status_code for hop in first.redirect_chain] == [302, 200]
+    assert [hop.url for hop in first.redirect_chain] == [registered.url, registered.final_url]
+
+
+def test_fetcher_fake_records_request_headers() -> None:
+    fetcher = FakeFetcher({fetch_result().url: fetch_result()})
+    fetcher.fetch(fetch_result().url, request_headers={"If-None-Match": '"v1"'})
+    assert dict(fetcher.last_request_headers) == {"If-None-Match": '"v1"'}
 
 
 def test_clock_fake_contract() -> None:

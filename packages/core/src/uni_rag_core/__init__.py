@@ -34,6 +34,7 @@ from uni_rag_core.schemas import (
     Language,
     PastPaperQuestion,
     Query,
+    RedirectHop,
     ScoredChunk,
     VectorHit,
 )
@@ -68,6 +69,7 @@ __all__ = [
     "PastPaperQuestion",
     "PortError",
     "Query",
+    "RedirectHop",
     "Reranker",
     "RetrievalError",
     "ScoredChunk",
