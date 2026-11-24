@@ -18,12 +18,25 @@ from typing import cast
 
 import httpx
 import pytest
+from qdrant_client import QdrantClient
 
+from tests.contracts.port_contracts import assert_vector_store_contract
 from tests.factories import document as sample_document
 from tests.integration.composition import build_context, build_fetcher, build_parser, fixture_path
 from tests.integration.provenance import attach_provenance
 from tests.integration.selection import AdapterSelection
-from uni_rag_core import Answer, Chunk, Document, ImageRef, Language, Query, Settings, SystemClock
+from uni_rag_core import (
+    Answer,
+    Chunk,
+    Document,
+    ImageRef,
+    Language,
+    Query,
+    Settings,
+    SystemClock,
+    VectorStore,
+)
+from uni_rag_indexing.adapters.qdrant_vector_store import QdrantVectorStore
 from uni_rag_ingestion.chunking.domain.model import Block, BlockKind
 from uni_rag_ingestion.chunking.domain.model import ParsedDocument as ChunkableDocument
 from uni_rag_ingestion.chunking.domain.strategy_fixed_window import STRATEGY_NAME as FIXED_WINDOW
@@ -185,6 +198,15 @@ def test_parser_swap_uses_docling_adapter(integration_settings: Settings) -> Non
     assert isinstance(parser, DoclingParser)
     parsed = parser.parse(_FIXTURE_DIR / "content-v1.html")
     assert parsed.pages and parsed.pages[0].text
+
+
+def test_vector_store_swap_uses_qdrant_adapter(integration_settings: Settings) -> None:
+    """Lane D's real adapter passes the shared VectorStore contract."""
+    selection = AdapterSelection.from_settings(integration_settings)
+    assert selection.vector_store == "qdrant"
+    store = QdrantVectorStore(QdrantClient(":memory:"), dimension=2, host="in-memory")
+    assert isinstance(store, VectorStore)
+    assert_vector_store_contract(store)
 
 
 def test_chunking_swap_runs_both_strategies(integration_settings: Settings) -> None:

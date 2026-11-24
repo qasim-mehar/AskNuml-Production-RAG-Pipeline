@@ -54,6 +54,8 @@ class AdapterSelection:
             parser="docling",
             # swap 3: chunking -> Lane C's two strategies (F's ablation axes)
             chunking="strategies",
+            # swap 4: vector store -> Lane D's Qdrant adapter (compose endpoint)
+            vector_store="qdrant",
             live_providers=live,
         )
 
