@@ -1,14 +1,33 @@
 """Settings fail fast with a clear error (L8)."""
 
 import pytest
+from pydantic import BaseModel
 
-from uni_rag_core import ConfigError, Settings, get_settings, load_settings
+from uni_rag_core import (
+    ApiSection,
+    ConfigError,
+    CrawlerSection,
+    ProvidersSection,
+    Settings,
+    get_settings,
+    load_settings,
+)
+from uni_rag_core.config import SECTION_ENV_PREFIXES
 
 REQUIRED = {"qdrant_url", "postgres_dsn", "minio_endpoint"}
+SECTION_TYPES: dict[str, type[BaseModel]] = {
+    "api": ApiSection,
+    "crawler": CrawlerSection,
+    "providers": ProvidersSection,
+}
 
 
 def _env_names() -> list[str]:
-    return [f"UNI_RAG_{name.upper()}" for name in Settings.model_fields]
+    names = [f"UNI_RAG_{name.upper()}" for name in Settings.model_fields]
+    for section, section_type in SECTION_TYPES.items():
+        prefix = SECTION_ENV_PREFIXES[section]
+        names.extend(f"{prefix}{name.upper()}" for name in section_type.model_fields)
+    return names
 
 
 @pytest.fixture

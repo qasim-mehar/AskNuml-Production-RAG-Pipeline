@@ -1,4 +1,4 @@
-"""Deterministic in-memory Clock fake."""
+"""Clock implementations: the deterministic fake and the production adapter."""
 
 from datetime import UTC, datetime
 
@@ -15,3 +15,15 @@ class FakeClock:
     def now(self) -> datetime:
         """Return the fixed datetime."""
         return self._fixed
+
+
+class SystemClock:
+    """Wall-clock implementation of the core ``Clock`` port (L3, ADR 0008).
+
+    Ships next to the fake for discoverability; production paths inject it while
+    tests keep injecting ``FakeClock`` so results stay deterministic (L4).
+    """
+
+    def now(self) -> datetime:
+        """Return the current timezone-aware UTC datetime."""
+        return datetime.now(UTC)

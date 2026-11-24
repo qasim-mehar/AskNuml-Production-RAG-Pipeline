@@ -17,11 +17,13 @@ from uni_rag_core import (
     Fetcher,
     ObjectStore,
     Reranker,
+    SystemClock,
     VectorStore,
 )
 
 PORTS_AND_FAKES = [
     (Clock, FakeClock()),
+    (Clock, SystemClock()),
     (Embedder, FakeEmbedder()),
     (Fetcher, FakeFetcher()),
     (LLM, FakeLLM()),

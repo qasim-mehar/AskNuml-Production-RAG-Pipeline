@@ -19,6 +19,7 @@ from uni_rag_core import (
     FakeObjectStore,
     FakeReranker,
     FakeVectorStore,
+    SystemClock,
 )
 
 
@@ -68,3 +69,16 @@ def test_fetcher_fake_records_request_headers() -> None:
 
 def test_clock_fake_contract() -> None:
     assert_clock_contract(FakeClock())
+
+
+def test_system_clock_contract() -> None:
+    assert_clock_contract(SystemClock())
+
+
+def test_system_clock_moves_forward_without_replacing_the_fake() -> None:
+    clock = SystemClock()
+    first = clock.now()
+    second = clock.now()
+    assert second >= first
+    assert FakeClock(first).now() == first
+    assert FakeClock(first).now() == FakeClock(first).now()

@@ -1,6 +1,6 @@
 """In-memory fakes for every port (L3, L4)."""
 
-from uni_rag_core.fakes.clock import FakeClock
+from uni_rag_core.fakes.clock import FakeClock, SystemClock
 from uni_rag_core.fakes.embedder import FakeEmbedder
 from uni_rag_core.fakes.fetcher import FakeFetcher
 from uni_rag_core.fakes.llm import FakeLLM
@@ -16,4 +16,5 @@ __all__ = [
     "FakeObjectStore",
     "FakeReranker",
     "FakeVectorStore",
+    "SystemClock",
 ]

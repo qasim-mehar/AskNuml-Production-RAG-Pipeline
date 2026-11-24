@@ -1,6 +1,13 @@
 """uni-rag shared kernel: schemas, ports, fakes, config, logging and errors."""
 
-from uni_rag_core.config import Settings, get_settings, load_settings
+from uni_rag_core.config import (
+    ApiSection,
+    CrawlerSection,
+    ProvidersSection,
+    Settings,
+    get_settings,
+    load_settings,
+)
 from uni_rag_core.errors import (
     AbstentionError,
     AuthError,
@@ -23,6 +30,7 @@ from uni_rag_core.fakes import (
     FakeObjectStore,
     FakeReranker,
     FakeVectorStore,
+    SystemClock,
 )
 from uni_rag_core.logging import configure_logging, current_trace_id, get_logger, trace
 from uni_rag_core.ports import LLM, Clock, Embedder, Fetcher, ObjectStore, Reranker, VectorStore
@@ -49,6 +57,7 @@ __version__ = "0.1.0"
 __all__ = [
     "AbstentionError",
     "Answer",
+    "ApiSection",
     "AuthError",
     "BlockKind",
     "Chunk",
@@ -56,6 +65,7 @@ __all__ = [
     "ContentBlock",
     "Clock",
     "ConfigError",
+    "CrawlerSection",
     "DocType",
     "Document",
     "Embedder",
@@ -77,6 +87,7 @@ __all__ = [
     "ParseError",
     "PastPaperQuestion",
     "PortError",
+    "ProvidersSection",
     "Query",
     "RateLimitError",
     "RedirectHop",
@@ -85,6 +96,7 @@ __all__ = [
     "ScoredChunk",
     "Settings",
     "StorageError",
+    "SystemClock",
     "UniRagError",
     "ValidationError",
     "VectorHit",
