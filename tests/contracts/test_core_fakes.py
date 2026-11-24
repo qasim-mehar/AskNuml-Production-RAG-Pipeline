@@ -8,6 +8,7 @@ from tests.contracts.port_contracts import (
     assert_llm_contract,
     assert_object_store_contract,
     assert_reranker_contract,
+    assert_vector_payload_roundtrip_contract,
     assert_vector_store_contract,
 )
 from tests.factories import fetch_result
@@ -33,6 +34,10 @@ def test_reranker_fake_contract() -> None:
 
 def test_vector_store_fake_contract() -> None:
     assert_vector_store_contract(FakeVectorStore())
+
+
+def test_vector_store_fake_payload_roundtrip_contract() -> None:
+    assert_vector_payload_roundtrip_contract(FakeVectorStore())
 
 
 def test_llm_fake_contract() -> None:

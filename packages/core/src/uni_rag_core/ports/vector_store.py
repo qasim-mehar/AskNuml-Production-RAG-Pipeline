@@ -21,7 +21,12 @@ class VectorStore(Protocol):
         top_k: int,
         filters: Mapping[str, str] | None = None,
     ) -> list[VectorHit]:
-        """Return at most ``top_k`` hits ordered by descending similarity."""
+        """Return at most ``top_k`` hits ordered by descending similarity.
+
+        Every hit's ``payload`` is a domain ``Chunk`` dump that validates
+        losslessly as ``Chunk``; operational storage fields do not cross this
+        port (ADR 0010).
+        """
         ...
 
     def delete(self, doc_id: str) -> None:
