@@ -104,6 +104,31 @@ def test_curated_golden_set_is_balanced_and_grounded() -> None:
     }
 
 
+def test_curated_golden_chunk_refs_resolve_against_the_integrated_corpus() -> None:
+    golden = load_golden_set(
+        json.loads((ROOT / "eval/golden/golden.json").read_text(encoding="utf-8"))
+    )
+    registry = load_fixture_registry(
+        json.loads((ROOT / "eval/golden/fixture-registry.json").read_text(encoding="utf-8"))
+    )
+    indexed = {chunk.chunk_id for chunk in chunks_from_registry(registry)}
+    referenced = {cid for record in golden.records for cid in record.expected_chunk_ids}
+    assert referenced, "the golden set must name expected chunk ids"
+    assert referenced <= indexed, "golden references must not dangle against the indexed corpus"
+    answerable = [record for record in golden.records if not record.expected_abstain]
+    assert len(answerable) == 27
+
+
+def test_a_declared_chunk_hash_that_disagrees_with_its_text_is_rejected() -> None:
+    registry = load_fixture_registry(load_fixture("synthetic-registry.json"))
+    doc = registry.documents[0]
+    bad_chunk = doc.chunks[0].model_copy(update={"content_hash": "not-the-real-hash"})
+    bad_doc = doc.model_copy(update={"chunks": [bad_chunk, *doc.chunks[1:]]})
+    mutated = registry.model_copy(update={"documents": [bad_doc, *registry.documents[1:]]})
+    with pytest.raises(ValidationError, match="content hash disagrees"):
+        chunks_from_registry(mutated)
+
+
 def test_registry_chunks_carry_full_l6_metadata() -> None:
     _, registry = _synthetic()
     chunks = chunks_from_registry(registry)

@@ -1,33 +1,37 @@
 {
-  "backend": "fake",
-  "baseline_id": "mechanics-validation-fake-v1",
-  "corpus": "fixture-corpus-v1",
+  "backend": "fetcher=fake|parser=docling|chunking=strategies|vector=qdrant_local|objects=fake|metadata=none|clock=fake|embedder=google_genai|reranker=fake|llm=google_genai|live=False|parser_engine=fixture-reader|adapters=real-offline|ADR0010-strip",
+  "baseline_id": "integrated-offline-v1",
+  "corpus": "fixture-corpus-v1-integrated",
   "golden_id": "curated-30-v1",
-  "note": "Measured on fake backend over fixture-corpus-v1 with curated-30-v1. Mechanics validation only, not a quality claim.",
+  "note": "First integrated-pipeline run (L1). Backend: real offline adapters behind core ports (qdrant_local, google-genai offline transports, fixture parser), no live provider or network call. Corpus fixture-corpus-v1-integrated, golden curated-30-v1, top_k=5, clock FakeClock(2026-01-01T00:00:00+00:00). Thresholds are the measured integrated values replacing the fake-backend mechanics-validation numbers; the backend/clock labels change, so this is not a silent threshold relaxation. Regressions against the old backend are reported to the owning lane, never absorbed.",
   "thresholds": {
     "en": {
       "abstention_precision": 0.0,
-      "faithfulness": 0.8333333333333334,
-      "mrr": 0.5555555555555556,
-      "ndcg": 0.5846510563492129,
-      "recall_at_k": 0.6666666666666666
+      "citation_resolution": 1.0,
+      "faithfulness": 0.75,
+      "mrr": 0.2777777777777778,
+      "ndcg": 0.3179281240163096,
+      "recall_at_k": 0.4444444444444444
     },
     "overall": {
-      "abstention_precision": 0.10526315789473684,
-      "faithfulness": 0.7,
-      "mrr": 0.3333333333333333,
-      "ndcg": 0.34303183359788575,
-      "recall_at_k": 0.37037037037037035
+      "abstention_precision": 0.1,
+      "citation_resolution": 1.0,
+      "faithfulness": 0.6666666666666666,
+      "mrr": 0.25,
+      "ndcg": 0.27007517311926593,
+      "recall_at_k": 0.3333333333333333
     },
     "roman_urdu": {
-      "abstention_precision": 0.16666666666666666,
-      "faithfulness": 0.5,
-      "mrr": 0.4444444444444444,
-      "ndcg": 0.4444444444444444,
-      "recall_at_k": 0.4444444444444444
+      "abstention_precision": 0.2,
+      "citation_resolution": 1.0,
+      "faithfulness": 0.6,
+      "mrr": 0.4722222222222222,
+      "ndcg": 0.4922973953414881,
+      "recall_at_k": 0.5555555555555556
     },
     "ur": {
       "abstention_precision": 0.1,
+      "citation_resolution": 0.0,
       "faithfulness": 0.0,
       "mrr": 0.0,
       "ndcg": 0.0,
@@ -35,5 +39,5 @@
     }
   },
   "top_k": 5,
-  "variant_name": "hybrid-rerank-on-freshness-off-awaiting-lane-c"
+  "variant_name": "hybrid-rerank-on-freshness-off-fixed_window+sentence_boundary"
 }
