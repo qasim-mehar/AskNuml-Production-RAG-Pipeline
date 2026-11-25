@@ -67,3 +67,12 @@ ADRs 0005–0009 (Lane 0 contracts wave).
 - [2026-11-25][done] Lane E: narrow provider adapters to SDK exception types (closes the 2026-11-24 line) — landed with E2 (24921d5, merge 78d7597).
 - [2026-11-25][done] Lane E: `Citation.last_crawled` population — E2 reads it natively from the ADR 0007 provenance fields; no residual remains.
 - [2026-11-25][done] Lane 0: lockfile regeneration (closes the 2026-11-24 parked line) — `uv.lock` regenerated with the full declared dependency set including G2's API deps and `live` extra; `uv lock --check` green on a network-enabled host. ADR 0005 remains the pin inventory; Docling remains unpinned and undeclared.
+
+## Merge-wave handoff lines (2026-11-25, wave 6 — LANE-0-MERGE-3)
+
+- [2026-11-25] Lane D: raw pydantic `ValidationError` on malformed stored payloads (untranslated) — the ADR-0010 boundary strip does not map storage decode failures onto `uni_rag_core.errors`; parked for a follow-up contract change.
+- [2026-11-25] Lane D: live test probes `localhost:6333` while the client uses `settings.qdrant_url` — the reachability guard hard-codes the local port, so the live round-trip probe can disagree with configured Qdrant; parked.
+- [2026-11-25] Lane F: live-provider re-run of `retry_rewrite` (opt-in; reversal of `REMOVE` requires a live-transport re-run) — the zero-gain verdict is measured on the labelled offline backend only (L1/L16).
+- [2026-11-25] Lane G: parsed-record persistence promotion ADR; real papers provider only after it — G3 ships the `PapersProvider` port + fake, no live provider.
+- [2026-11-25] Lane G → Lane H: migration `/api/papers` → `/api/v1/papers` plus `last_crawled` — the web-client migration is a Lane H handoff, not started here.
+- [2026-11-25] Lane 0: reaffirmed parked — parsed-record persistence ADR and the LangGraph dependency for `checkpoint_followup` stay queued (its L16 rows remain `awaiting measurement`); G3's promotion recommendation is input to that decision, not a promotion.
