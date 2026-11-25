@@ -76,3 +76,11 @@ ADRs 0005–0009 (Lane 0 contracts wave).
 - [2026-11-25] Lane G: parsed-record persistence promotion ADR; real papers provider only after it — G3 ships the `PapersProvider` port + fake, no live provider.
 - [2026-11-25] Lane G → Lane H: migration `/api/papers` → `/api/v1/papers` plus `last_crawled` — the web-client migration is a Lane H handoff, not started here.
 - [2026-11-25] Lane 0: reaffirmed parked — parsed-record persistence ADR and the LangGraph dependency for `checkpoint_followup` stay queued (its L16 rows remain `awaiting measurement`); G3's promotion recommendation is input to that decision, not a promotion.
+
+## Merge-wave handoff lines (2026-11-25, wave 4 — LANE-0-MERGE-4)
+
+- [2026-11-25] Lane D: live-mode Qdrant probe stays parked — the reachability guard hard-codes `localhost:6333` while the client uses `settings.qdrant_url`, so the live round-trip probe can disagree with configured Qdrant; unchanged by the ADR-0010 real-adapter proof on the in-memory client.
+- [2026-11-25] Lane F: live-transport re-run of `retry_rewrite` stays opt-in and parked — the measured KEEP/REMOVE verdict is offline-only (L1/L16); reversal of `REMOVE` requires a live-transport re-run, now that the node itself is removed in E3.
+- [2026-11-25] Lane 0: compose/Docker absence stays parked — Docker is absent on this host, so the compose-backed smoke skip is expected and fails no gate; compose is validated statically only (`make up` unavailable; Makefile recipes invoked directly).
+- [2026-11-25] Lane F (F4-owned, not Lane 0): stale docs still describe `retry_rewrite` as active — `eval/composition.py:6-8` and `eval/README.md:28,32,41` need updating after E3's removal; the supplied `eval/reports/latest.md` row was handed to Lane F to apply and remains F-owned, so Lane 0 did not edit `eval/` or `apps/` in this wave.
+- [2026-11-25] Lane 0: reaffirmed parked — parsed-record persistence ADR and the LangGraph dependency for `checkpoint_followup` stay queued (L16 rows remain `awaiting measurement`); both are the only remaining gates for G4 and H migration, and neither was promoted here.
