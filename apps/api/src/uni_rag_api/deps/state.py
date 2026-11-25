@@ -4,13 +4,18 @@ from typing import cast
 
 from fastapi import Request
 
-from uni_rag_api.config import ApiSettings
-from uni_rag_api.ports import AnswerService, HealthProbe
+from uni_rag_api.ports import AnswerService, HealthProbe, ImageService
+from uni_rag_core import ApiSection, Settings
 
 
-def api_settings(request: Request) -> ApiSettings:
-    """Return the injected settings instance."""
-    return cast("ApiSettings", request.app.state.api_settings)
+def settings(request: Request) -> Settings:
+    """Return the full folded core settings instance."""
+    return cast("Settings", request.app.state.settings)
+
+
+def api_settings(request: Request) -> ApiSection:
+    """Return the folded API section used by HTTP knobs."""
+    return cast("ApiSection", request.app.state.api_settings)
 
 
 def answer_service(request: Request) -> AnswerService:
@@ -23,4 +28,9 @@ def health_probe(request: Request) -> HealthProbe:
     return cast("HealthProbe", request.app.state.health_probe)
 
 
-__all__ = ["answer_service", "api_settings", "health_probe"]
+def image_service(request: Request) -> ImageService:
+    """Return the injected image lookup port."""
+    return cast("ImageService", request.app.state.image_service)
+
+
+__all__ = ["answer_service", "api_settings", "health_probe", "image_service", "settings"]

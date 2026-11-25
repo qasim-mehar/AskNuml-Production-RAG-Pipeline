@@ -3,8 +3,9 @@
 import json
 from typing import Any
 
+from uni_rag_api.composition import ephemeral_settings
 from uni_rag_api.fixtures import QUERY_EN
-from uni_rag_core import Answer, Language
+from uni_rag_core import Answer, ApiSection, Language, Settings
 
 
 def make_query(
@@ -23,6 +24,11 @@ def make_query(
         "top_k": top_k,
         "filters": filters if filters is not None else {"doc_type": "web_page"},
     }
+
+
+def make_settings(**api_overrides: Any) -> Settings:
+    """Build folded core settings with API-section overrides for a lane test."""
+    return ephemeral_settings(api=ApiSection(**api_overrides))
 
 
 def expected_body(answer: Answer) -> str:

@@ -39,6 +39,17 @@ class ReadyStatus(BaseModel):
     service: str
 
 
+class FeedbackRequest(BaseModel):
+    """ADR 0009 local-only feedback payload; unknown fields are rejected."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    answer_id: str
+    sentiment: Literal["positive", "negative"]
+    reason: str | None = None
+    query_id: str | None = None
+
+
 class TokenEvent(BaseModel):
     """One ordered SSE token payload."""
 
@@ -60,6 +71,7 @@ __all__ = [
     "Citation",
     "CitationsEvent",
     "ErrorBody",
+    "FeedbackRequest",
     "ImageRef",
     "Language",
     "LiveStatus",

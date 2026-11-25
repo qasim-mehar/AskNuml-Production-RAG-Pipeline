@@ -6,10 +6,9 @@ import re
 
 import pytest
 from fastapi.testclient import TestClient
-from helpers import make_query
+from helpers import make_query, make_settings
 
 from uni_rag_api.app import create_app
-from uni_rag_api.config import ApiSettings
 from uni_rag_api.service import FakeHealthProbe
 from uni_rag_core import Answer, PortError, Query, StorageError
 from uni_rag_core.logging.logger import JsonFormatter
@@ -101,7 +100,7 @@ def test_unhandled_error_echoes_configured_trace_header() -> None:
         def tokens(self, answer: Answer):  # pragma: no cover - never reached
             yield from ()
 
-    settings = ApiSettings(trace_header="X-Custom-Trace")
+    settings = make_settings(trace_header="X-Custom-Trace")
     client = TestClient(
         create_app(settings, answer_service=BrokenService()),
         raise_server_exceptions=False,

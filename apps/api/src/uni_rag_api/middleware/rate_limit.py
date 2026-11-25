@@ -11,9 +11,8 @@ from math import ceil
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from uni_rag_api.config import ApiSettings
 from uni_rag_api.schemas import ErrorBody
-from uni_rag_core import Clock
+from uni_rag_core import ApiSection, Clock
 from uni_rag_core.logging import TraceLogger
 
 
@@ -70,7 +69,7 @@ class RateLimitMiddleware:
     """Return a typed 429 when the caller's bucket is empty."""
 
     def __init__(
-        self, app: ASGIApp, *, settings: ApiSettings, clock: Clock, logger: TraceLogger
+        self, app: ASGIApp, *, settings: ApiSection, clock: Clock, logger: TraceLogger
     ) -> None:
         self._app = app
         self._exempt = frozenset(settings.rate_limit_exempt_paths)

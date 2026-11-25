@@ -2,10 +2,9 @@
 
 import pytest
 from fastapi.testclient import TestClient
-from helpers import expected_body, make_query
+from helpers import expected_body, make_query, make_settings
 
 from uni_rag_api.app import create_app
-from uni_rag_api.config import ApiSettings
 from uni_rag_api.fixtures import EN_ANSWER, QUERY_EN
 
 
@@ -57,7 +56,7 @@ def test_unknown_route_returns_typed_404(client: TestClient) -> None:
 @pytest.mark.parametrize("provided_key", [None, "wrong-key"])
 def test_auth_stub_rejects_missing_or_wrong_key(provided_key: str | None) -> None:
     """Auth enforcement is optional but constant-time when enabled."""
-    settings = ApiSettings(auth_enabled=True, api_key="correct-key", rate_limit_capacity=1000)
+    settings = make_settings(auth_enabled=True, api_key="correct-key", rate_limit_capacity=1000)
     client = TestClient(create_app(settings))
     headers = {"X-API-Key": provided_key} if provided_key is not None else None
 
@@ -69,7 +68,7 @@ def test_auth_stub_rejects_missing_or_wrong_key(provided_key: str | None) -> Non
 
 def test_auth_stub_accepts_configured_key() -> None:
     """The exact configured key passes the stub."""
-    settings = ApiSettings(auth_enabled=True, api_key="correct-key", rate_limit_capacity=1000)
+    settings = make_settings(auth_enabled=True, api_key="correct-key", rate_limit_capacity=1000)
     client = TestClient(create_app(settings))
 
     response = client.post(
