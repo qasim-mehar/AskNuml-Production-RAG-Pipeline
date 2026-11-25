@@ -54,3 +54,16 @@ ADRs 0005–0009 (Lane 0 contracts wave).
 - [2026-11-24] Lane 0: lane shims retire in each lane's next milestone, not this wave — A's `CrawlerConfig`/`conditional_headers_for` and local `SystemClock`, B's `PaperMetadata`/parser-local `ParsedDocument`, C's chunking-local `ParsedDocument` and text atomic-unit reasons, E's last-crawled/next-step text footers, G's `ApiSettings`/API-local error subclasses, H's strict TS mirrors and `core-emitted.json` fixture (ADRs 0006–0009).
 - [2026-11-24] Lane 0: generation of a real page-image renderer and a live `/api/images/{ref_id}` proxy implementation stay parked; `ImageRef.image_url` only documents the convention (ADR 0007).
 - [2026-11-25] Lane D: exposing the nine operational payload fields (`last_crawled_ts`, `department`, `course_code`, `year`, `term`, `is_live`, `indexed_at`, `deleted_at`, `superseded_by`) as first-class `Chunk` fields stays parked. ADR 0010 keeps them in Qdrant storage for filter pushdown and strips them from `VectorHit.payload` at the adapter boundary; no core schema or L6 change. One-line fix request routed to Lane D in the handoff.
+
+## Merge-wave handoff lines (2026-11-25, wave 2)
+
+- [2026-11-25] Lane H: user-visible fake-backend banner — the labelled local Lighthouse mode is honest in docs/logs but the UI does not tell a visitor the backend is fake.
+- [2026-11-25] Lane H: localized image-failure copy — a failed image load becomes an explicit status message, but only in English (L7).
+- [2026-11-25] Lane H: configurable SSE timeout — `DEFAULT_TIMEOUT_MS` / `STREAM_TIMEOUT_MS` are hard-coded in the web client.
+- [2026-11-25] Lane H: feedback auth/persistence — H2 keeps ADR 0009's local-only `202` echo; real feedback auth and persistence stay parked (reaffirms the 2026-11-24 line).
+- [2026-11-25] Lane F: live-provider comparison run (opt-in, never CI) — carried from F2's proposals. (F2's per-strategy corpus differentiation is being executed in F3 and is deliberately not parked; recorded on the PROGRESS board only.)
+- [2026-11-25] Lane G: per-package `py.typed` markers for D and E — D2 takes D's marker; E's marker waits for E3 (core's marker already shipped in ADR 0008).
+- [2026-11-25] Lane G → G3: declare `x-request-id` on every OpenAPI operation; G2's regenerated artifact omits it. G3 also owns the real residuals from H2's reconciliation — the papers route is absent and the two SSE envelopes are undocumented.
+- [2026-11-25][done] Lane E: narrow provider adapters to SDK exception types (closes the 2026-11-24 line) — landed with E2 (24921d5, merge 78d7597).
+- [2026-11-25][done] Lane E: `Citation.last_crawled` population — E2 reads it natively from the ADR 0007 provenance fields; no residual remains.
+- [2026-11-25][done] Lane 0: lockfile regeneration (closes the 2026-11-24 parked line) — `uv.lock` regenerated with the full declared dependency set including G2's API deps and `live` extra; `uv lock --check` green on a network-enabled host. ADR 0005 remains the pin inventory; Docling remains unpinned and undeclared.

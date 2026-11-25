@@ -2619,12 +2619,16 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "uni-rag-core" },
+    { name = "uni-rag-retrieval" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
 [package.optional-dependencies]
 dev = [
     { name = "httpx" },
+]
+live = [
+    { name = "uni-rag-indexing" },
 ]
 
 [package.metadata]
@@ -2634,9 +2638,11 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.9" },
     { name = "pydantic-settings", specifier = ">=2.5" },
     { name = "uni-rag-core", editable = "packages/core" },
+    { name = "uni-rag-indexing", marker = "extra == 'live'", editable = "packages/indexing" },
+    { name = "uni-rag-retrieval", editable = "packages/retrieval" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["dev", "live"]
 
 [[package]]
 name = "uni-rag-core"
