@@ -1,4 +1,3 @@
-# mypy: disable-error-code=import-untyped
 """Reciprocal-rank fusion, lexical scoring and freshness math (L1, L9).
 
 All functions here are pure: no clock reads, no I/O, no provider calls. The

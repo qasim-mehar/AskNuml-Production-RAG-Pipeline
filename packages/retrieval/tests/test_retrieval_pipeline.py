@@ -60,8 +60,9 @@ def test_golden_answers_carry_resolving_citations(row: dict) -> None:
         assert citation.doc_id == chunk.doc_id
         assert citation.source_url == chunk.source_url
         assert citation.page == chunk.page
-        assert chunk.last_crawled.isoformat() in answer.text
-        assert chunk.source_url in answer.text
+        assert citation.last_crawled == chunk.last_crawled
+        assert "Sources (last crawled" not in answer.text
+        assert chunk.source_url not in answer.text
 
 
 def test_weak_evidence_abstains_with_next_step_and_no_fabrication() -> None:
@@ -70,7 +71,9 @@ def test_weak_evidence_abstains_with_next_step_and_no_fabrication() -> None:
     assert answer.citations == []
     assert answer.images == []
     assert answer.confidence == 0.0
-    assert "Next step" in answer.text
+    assert answer.next_step and "department office" in answer.next_step
+    assert answer.abstention_reason
+    assert "Next step" not in answer.text
     assert "2026" not in answer.text
     assert "@" not in answer.text
 
@@ -78,9 +81,9 @@ def test_weak_evidence_abstains_with_next_step_and_no_fabrication() -> None:
 @pytest.mark.parametrize(
     ("text", "language", "next_step_marker"),
     [
-        ("What is the parking fee?", Language.EN, "Next step"),
-        ("پارکنگ کی فیس کتنی ہے؟", Language.UR, "اگلا قدم"),
-        ("Parking ka fee kitna hai?", Language.ROMAN_URDU, "Agla qadam"),
+        ("What is the parking fee?", Language.EN, "department office"),
+        ("پارکنگ کی فیس کتنی ہے؟", Language.UR, "رابطہ"),
+        ("Parking ka fee kitna hai?", Language.ROMAN_URDU, "rabta"),
     ],
 )
 def test_abstention_keeps_language_parity(
@@ -91,7 +94,7 @@ def test_abstention_keeps_language_parity(
 
     assert answer.abstained is True
     assert answer.language is language
-    assert next_step_marker in answer.text
+    assert next_step_marker in (answer.next_step or "")
     assert answer.citations == []
 
 

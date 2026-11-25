@@ -1,4 +1,3 @@
-# mypy: disable-error-code=import-untyped
 """Pure text normalization for English, Urdu and Roman Urdu (L7, L9).
 
 Normalization has no I/O and is idempotent: folding twice is identical to

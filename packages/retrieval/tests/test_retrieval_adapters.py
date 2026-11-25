@@ -15,8 +15,13 @@ from uni_rag_retrieval.adapters.google_genai_provider import (
     GoogleGenaiEmbedder,
     GoogleGenaiLLM,
     GoogleGenaiPageImages,
+    GoogleGenaiSDKError,
 )
-from uni_rag_retrieval.adapters.openai_provider import OpenAIEmbedder, OpenAILLM
+from uni_rag_retrieval.adapters.openai_provider import (
+    OpenAIEmbedder,
+    OpenAILLM,
+    OpenAISDKError,
+)
 
 # Live calls are opt-in only. ADR 0002 leaves the opt-in setting to a Lane 0
 # CONTRACT-CHANGE PR, so this test-only flag stays False until that lands.
@@ -56,20 +61,39 @@ def test_page_images_use_object_store_and_a_frozen_image_ref() -> None:
     assert vector == handler.embed_page(ref)
 
 
-def test_adapter_transport_failures_are_typed_and_not_swallowed() -> None:
-    def broken_transport(prompt: str, system: str | None) -> str:
-        raise RuntimeError("transport down")
+def test_sdk_transport_failures_are_typed_and_unexpected_errors_propagate() -> None:
+    def sdk_error_transport(prompt: str, system: str | None) -> str:
+        raise GoogleGenaiSDKError("google transport down")
 
     with pytest.raises(PortError):
-        GoogleGenaiLLM(transport=broken_transport).complete("hello")
+        GoogleGenaiLLM(transport=sdk_error_transport).complete("hello")
+
+    def openai_sdk_error_transport(prompt: str, system: str | None) -> str:
+        raise OpenAISDKError("openai transport down")
+
     with pytest.raises(PortError):
-        OpenAILLM(transport=broken_transport).complete("hello")
+        OpenAILLM(transport=openai_sdk_error_transport).complete("hello")
+
+    def unexpected_error_transport(prompt: str, system: str | None) -> str:
+        raise RuntimeError("a bug, not an SDK error")
+
+    with pytest.raises(RuntimeError, match="a bug"):
+        GoogleGenaiLLM(transport=unexpected_error_transport).complete("hello")
+    with pytest.raises(RuntimeError, match="a bug"):
+        OpenAILLM(transport=unexpected_error_transport).complete("hello")
 
     def empty_transport(prompt: str, system: str | None) -> str:
         return ""
 
     with pytest.raises(PortError):
         OpenAILLM(transport=empty_transport).complete("hello")
+
+
+def test_no_bare_exception_catch_remains_in_provider_adapters() -> None:
+    for name in ("google_genai_provider.py", "openai_provider.py"):
+        source = (_SOURCE_ROOT / "adapters" / name).read_text(encoding="utf-8")
+        assert "except Exception" not in source
+        assert "mypy: disable-error-code" not in source
 
 
 def test_adapters_reject_wrong_vector_shapes() -> None:
@@ -105,7 +129,7 @@ def test_page_image_failures_propagate_or_are_typed() -> None:
         handler.embed_page(ref)
 
     def broken(data: bytes, mime_type: str) -> list[float]:
-        raise RuntimeError("image transport down")
+        raise GoogleGenaiSDKError("image transport down")
 
     store.put(ref.ref_id, b"fixture", content_type=ref.mime_type)
     failing = GoogleGenaiPageImages(object_store=store, dimension=16, transport=broken)

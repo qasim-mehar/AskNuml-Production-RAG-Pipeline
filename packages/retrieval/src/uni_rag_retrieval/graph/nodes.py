@@ -1,8 +1,9 @@
 """Node registry scaffold: names, purposes and required eval rows (L16).
 
-Implemented entries map to plain ``service`` functions. Future control-flow
-nodes are documented with a named purpose and the eval row they must earn
-before they are added; none of them are wired into the default path.
+Implemented entries map to thin wrappers over plain ``service`` functions; the
+wrapper holds no logic (L15). Future control-flow nodes are documented with a
+named purpose and the eval row they must earn before they are added. Only
+``retry_rewrite`` is live, and it is off by default until Lane F measures it.
 """
 
 from __future__ import annotations
@@ -11,6 +12,23 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from uni_rag_retrieval.service import pipeline as service
+from uni_rag_retrieval.service.retry_rewrite import (
+    RetryRewriteRequest,
+    RewriteOutcome,
+)
+from uni_rag_retrieval.service.retry_rewrite import (
+    retry_rewrite as retry_rewrite_service,
+)
+
+
+def retry_rewrite_node(request: RetryRewriteRequest) -> RewriteOutcome:
+    """Thin graph node: delegate grading, rewrite and re-search to the service.
+
+    There is no framework import here — LangGraph calls this plain callable when
+    the dependency is promoted (ADR 0005 does not park it) — and no node logic
+    lives in ``graph/`` (L15, L16).
+    """
+    return retry_rewrite_service(request)
 
 
 @dataclass(frozen=True)
@@ -67,8 +85,12 @@ NODE_SPECS: dict[str, NodeSpec] = {
     ),
     "retry_rewrite": NodeSpec(
         name="retry_rewrite",
-        purpose="Rewrite a weakly retrieved query once and repeat the search (capped loop).",
-        eval_row="recall@k gain on weak-evidence rows vs the single-pass baseline.",
+        purpose="Grade retrieval, rewrite a weak query via the LLM port and re-search, capped.",
+        eval_row=(
+            "recall@k gain vs single pass at k=5 on weak-evidence rows; "
+            "remove the node if the measured gain is zero (L16)."
+        ),
+        handler=retry_rewrite_node,
     ),
     "clarify": NodeSpec(
         name="clarify",
@@ -91,4 +113,4 @@ NODE_REGISTRY: dict[str, Callable[..., object]] = {
     name: spec.handler for name, spec in NODE_SPECS.items() if spec.handler is not None
 }
 
-__all__ = ["NODE_REGISTRY", "NODE_SPECS", "NodeSpec"]
+__all__ = ["NODE_REGISTRY", "NODE_SPECS", "NodeSpec", "retry_rewrite_node"]

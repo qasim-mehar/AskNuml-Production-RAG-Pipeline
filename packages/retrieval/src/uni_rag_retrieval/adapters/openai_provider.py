@@ -1,4 +1,3 @@
-# mypy: disable-error-code=import-untyped
 """Second provider adapter: OpenAI (also usable with a local OpenAI-compatible server).
 
 Chosen because its chat-completions and embeddings endpoints expose exactly the
@@ -13,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import importlib
 import math
+import sys
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -20,6 +20,28 @@ from uni_rag_core import PortError, ValidationError
 
 CompletionTransport = Callable[[str, str | None], str]
 EmbeddingTransport = Callable[[Sequence[str], int], list[list[float]]]
+
+
+class OpenAISDKError(Exception):
+    """Offline stand-in for an OpenAI SDK failure (L11).
+
+    The SDK is an optional extra and is never installed in CI, so transports
+    exercised by tests raise this typed marker instead of a real SDK error.
+    """
+
+
+def _sdk_error_types() -> tuple[type[BaseException], ...]:
+    """Return the real SDK exception types when loaded, plus the offline marker.
+
+    Resolved from ``sys.modules`` only, so importing this adapter never pulls in
+    the optional SDK (L15). Unexpected Python errors are deliberately not caught:
+    they must propagate instead of being swallowed (L11).
+    """
+    sdk = sys.modules.get("openai")
+    api_error = getattr(sdk, "APIError", None) if sdk is not None else None
+    if isinstance(api_error, type) and issubclass(api_error, BaseException):
+        return (api_error, OpenAISDKError)
+    return (OpenAISDKError,)
 
 
 def _hash_vector(payload: bytes, dimension: int) -> list[float]:
@@ -119,7 +141,7 @@ class OpenAILLM:
             result = self._transport(prompt, system)
         except PortError:
             raise
-        except Exception as exc:
+        except _sdk_error_types() as exc:
             msg = "openai completion failed"
             raise PortError(msg, context={"error": str(exc)}) from exc
         if not result.strip():
@@ -149,7 +171,7 @@ class OpenAIEmbedder:
             vectors = self._transport(texts, self._dimension)
         except PortError:
             raise
-        except Exception as exc:
+        except _sdk_error_types() as exc:
             msg = "openai embedding failed"
             raise PortError(msg, context={"error": str(exc)}) from exc
         return _conform_vectors(
@@ -160,6 +182,7 @@ class OpenAIEmbedder:
 __all__ = [
     "OpenAIEmbedder",
     "OpenAILLM",
+    "OpenAISDKError",
     "live_completion_transport",
     "live_embedding_transport",
 ]
