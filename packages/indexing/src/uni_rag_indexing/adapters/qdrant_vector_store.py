@@ -10,6 +10,7 @@ constructor injection (L4/L9).
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from datetime import datetime
 from typing import Any, NoReturn
 from urllib.parse import urlsplit
 
@@ -59,11 +60,55 @@ KEYWORD_FIELDS = (
 INTEGER_FIELDS = ("year", "page", "chunk_index")
 FLOAT_FIELDS = ("last_crawled_ts",)
 
+# Storage-only filter predicates from ADR 0010. They stay in the Qdrant payload
+# (and its indexes) but must never cross the VectorStore port in a VectorHit.
+OPERATIONAL_FIELDS: frozenset[str] = frozenset(
+    {
+        "last_crawled_ts",
+        "department",
+        "course_code",
+        "year",
+        "term",
+        "is_live",
+        "indexed_at",
+        "deleted_at",
+        "superseded_by",
+    }
+)
+
 
 def _host_from_url(url: str) -> str:
     """Return only the host (never credentials) for errors and log fields."""
     parsed = urlsplit(url)
     return parsed.hostname or url
+
+
+def _stored_payload(chunk: Chunk, *, indexed_at: datetime) -> dict[str, Any]:
+    """Build the filterable storage record: operational fields and metadata kept."""
+    payload = build_payload(chunk, indexed_at=indexed_at)
+    # build_payload normalises to UTC, which would lose the original offset on
+    # the way back through the port; keep the exact timestamp for round-trips.
+    payload["last_crawled"] = chunk.last_crawled.isoformat()
+    payload["metadata"] = None if chunk.metadata is None else dict(chunk.metadata)
+    return payload
+
+
+def _domain_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the domain-clean ``Chunk`` dump allowed across the port (ADR 0010).
+
+    Strips the operational fields before validation; re-dumping through ``Chunk``
+    retains every declared field (including metadata) and canonicalises the JSON
+    form. Because ``Chunk`` forbids extras, a strip that misses a storage field
+    fails here instead of leaking into a retrieved hit.
+    """
+    clean = {key: value for key, value in payload.items() if key not in OPERATIONAL_FIELDS}
+    return Chunk.model_validate(clean).model_dump(mode="json")
+
+
+def _to_hit(payload: Mapping[str, Any] | None, *, score: float) -> VectorHit:
+    """Construct a port hit whose payload validates losslessly as a Chunk."""
+    domain = _domain_payload(payload or {})
+    return VectorHit(chunk_id=str(domain["chunk_id"]), score=float(score), payload=domain)
 
 
 class QdrantVectorStore:
@@ -175,7 +220,7 @@ class QdrantVectorStore:
                     deleted_at=stamp,
                     keep_content_hash=chunk.content_hash,
                 )
-                payload = build_payload(chunk, indexed_at=stamp)
+                payload = _stored_payload(chunk, indexed_at=stamp)
                 self._client.upsert(
                     collection_name=self._dense,
                     points=[
@@ -212,14 +257,7 @@ class QdrantVectorStore:
             )
         except Exception as exc:  # noqa: BLE001 - classified, re-raised typed
             self._raise_typed(exc, "search")
-        hits = [
-            VectorHit(
-                chunk_id=str((point.payload or {}).get("chunk_id", "")),
-                score=float(point.score),
-                payload=dict(point.payload or {}),
-            )
-            for point in response.points
-        ]
+        hits = [_to_hit(point.payload, score=point.score) for point in response.points]
         _logger.debug("qdrant_search", top_k=top_k, hits=len(hits), host=self._host)
         return hits
 
@@ -269,7 +307,7 @@ class QdrantVectorStore:
                 collections=(self._sparse,),
                 keep_content_hash=chunk.content_hash,
             )
-            payload = build_payload(chunk, indexed_at=stamp)
+            payload = _stored_payload(chunk, indexed_at=stamp)
             self._client.upsert(
                 collection_name=self._sparse,
                 points=[
@@ -312,14 +350,7 @@ class QdrantVectorStore:
             )
         except Exception as exc:  # noqa: BLE001 - classified, re-raised typed
             self._raise_typed(exc, "search_sparse")
-        return [
-            VectorHit(
-                chunk_id=str((point.payload or {}).get("chunk_id", "")),
-                score=float(point.score),
-                payload=dict(point.payload or {}),
-            )
-            for point in response.points
-        ]
+        return [_to_hit(point.payload, score=point.score) for point in response.points]
 
     # -- internals --------------------------------------------------------------
     def _soften_live(
@@ -393,10 +424,12 @@ class QdrantVectorStore:
     def _same(payload: Mapping[str, Any] | None, chunk: Chunk) -> bool:
         if payload is None:
             return False
+        metadata = None if chunk.metadata is None else dict(chunk.metadata)
         return (
             payload.get("content_hash") == chunk.content_hash
             and payload.get("version") == chunk.version
             and payload.get("is_live") is True
+            and payload.get("metadata") == metadata
         )
 
     def _raise_typed(self, exc: Exception, operation: str) -> NoReturn:
