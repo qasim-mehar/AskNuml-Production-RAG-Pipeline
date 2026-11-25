@@ -30,6 +30,7 @@ from tests.contracts.port_contracts import (
     assert_llm_contract,
     assert_object_store_contract,
     assert_reranker_contract,
+    assert_vector_payload_roundtrip_contract,
     assert_vector_store_contract,
 )
 from tests.factories import document as sample_document
@@ -299,6 +300,10 @@ def test_vector_store_swap_uses_qdrant_adapter(integration_settings: Settings) -
     store = QdrantVectorStore(QdrantClient(":memory:"), dimension=2, host="in-memory")
     assert isinstance(store, VectorStore)
     assert_vector_store_contract(store)
+    # ADR 0010: prove the invariant on the REAL stripped adapter, not F3's
+    # in-memory/labelled-offline decorator (which existed only while D2 was
+    # unmerged). The port boundary must return lossless, domain-clean Chunks.
+    assert_vector_payload_roundtrip_contract(store)
 
 
 def test_chunking_swap_runs_both_strategies(integration_settings: Settings) -> None:
@@ -313,16 +318,13 @@ def test_chunking_swap_runs_both_strategies(integration_settings: Settings) -> N
         assert first and first == second
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "New CONTRACT-CHANGE filed for Lane 0: Lane D's Qdrant payload carries "
-        "index fields (is_live, indexed_at, ...) that Lane E validates as a "
-        "Chunk with extra='forbid'. Integration must not patch either lane."
-    ),
-)
 def test_offline_end_to_end_fixture_pipeline(integration_settings: Settings) -> None:
-    """Crawl -> parse -> chunk -> index -> answer without Docker or live providers."""
+    """Crawl -> parse -> chunk -> index -> answer without Docker or live providers.
+
+    The former strict xfail is now a pass: ADR 0010's domain-clean payload strip
+    landed on main via Lane D (D2), so Lane E reconstructs ``Chunk`` from a
+    lossless, domain-clean ``VectorHit.payload`` with no integration-side patch.
+    """
     selection = replace(
         AdapterSelection.ci_default(),
         fetcher="http",

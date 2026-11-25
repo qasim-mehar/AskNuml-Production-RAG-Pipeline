@@ -70,7 +70,10 @@ def run_integrated(chunks: Sequence[Chunk], settings: Settings) -> RunResult:
     )
     run_context = RunContext(
         run_id=_RUN_ID,
-        backend=f"{selection.backend_label()}|parser_engine={parser_backend()}",
+        backend=(
+            f"{selection.backend_label()}|parser_engine={parser_backend()}"
+            "|adapters=real-offline|strip_source=real-adapter|ADR0010-strip"
+        ),
         corpus="fixture-corpus-v1",
         variant_name=DEFAULT_VARIANT.name,
         chunking_strategy="fixed_window+sentence_boundary",
@@ -78,7 +81,12 @@ def run_integrated(chunks: Sequence[Chunk], settings: Settings) -> RunResult:
         top_k=_TOP_K,
         timestamp=FIXED_TIME.astimezone(UTC).isoformat(),
     )
-    return run_harness(golden, context.ask, default_judge(), run_context)
+    # F2's eval service supplies ``known_chunks`` to run_harness so
+    # citation_resolution (ADR 0007, read from Citation.last_crawled) is measured
+    # against the same corpus that was indexed. Omitting it makes the metric
+    # structurally 0.0, which is not valid evidence (L1) — pass it here.
+    chunks_by_id = {chunk.chunk_id: chunk for chunk in chunks}
+    return run_harness(golden, context.ask, default_judge(), run_context, chunks_by_id)
 
 
 def _metric_row(language: str, scores: object) -> str:
@@ -159,10 +167,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     settings = integration_settings()
     baseline = load_baseline(_BASELINE)
 
+    # The fake run is a mechanics/smoke check (L1), not a quality gate. Since
+    # F2 the committed baseline is the *integrated* backend, so fake-vs-baseline
+    # metric deltas are expected: they are REPORTED below, never absorbed by a
+    # threshold change and never allowed to flip a threshold in baseline.json.
     fake_result = run_variant(golden, registry, DEFAULT_VARIANT, top_k=_TOP_K)
-    fake_comparison = compare_to_baseline(fake_result, baseline)
-    if [item for item in fake_comparison.failures if "label" not in item]:
+    if not fake_result.scores_by_language:
+        print("fake mechanics run produced no scores")
         return 1
+    fake_comparison = compare_to_baseline(fake_result, baseline)
+    fake_metric_failures = [
+        item for item in fake_comparison.failures if not item.startswith("label ")
+    ]
+    if fake_metric_failures:
+        print("Fake-backend vs integrated-baseline divergence (REPORTED, not absorbed):")
+        for item in fake_metric_failures:
+            print(f"  - {item}")
 
     chunks = chunks_from_registry(registry)
     integrated = run_integrated(chunks, settings)
