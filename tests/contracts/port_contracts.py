@@ -63,6 +63,28 @@ def assert_vector_store_contract(store: VectorStore) -> None:
     assert all(hit.chunk_id != "chunk-2" for hit in store.search([1.0, 0.0], top_k=5))
 
 
+def assert_vector_payload_roundtrip_contract(store: VectorStore) -> None:
+    """Every payload returned by a VectorStore validates losslessly as a Chunk (ADR 0010).
+
+    Adapters carry storage-only fields internally but must strip them at the
+    port boundary; a payload that raises ``extra_forbidden`` in ``Chunk`` fails
+    this contract. Lane D's Qdrant adapter runs this verbatim on the
+    integration re-run.
+    """
+    original = chunk()
+    renamed = original.model_copy(update={"chunk_id": "chunk-2", "doc_id": "doc-2"})
+    originals = {original.chunk_id: original, renamed.chunk_id: renamed}
+    store.upsert([(original, [1.0, 0.0]), (renamed, [0.0, 1.0])])
+    hits = store.search([1.0, 0.0], top_k=5)
+    assert hits
+    for hit in hits:
+        expected = originals[hit.chunk_id]
+        decoded = Chunk.model_validate(hit.payload)
+        assert decoded == expected
+        assert hit.payload == expected.model_dump(mode="json")
+    assert {hit.chunk_id for hit in hits} == {"chunk-1", "chunk-2"}
+
+
 def assert_llm_contract(llm: LLM) -> None:
     """LLM completion is a non-empty string and deterministic for the same input."""
     assert isinstance(llm, LLM)

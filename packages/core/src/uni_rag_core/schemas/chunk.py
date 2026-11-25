@@ -57,7 +57,12 @@ class ScoredChunk(BaseModel):
 
 
 class VectorHit(BaseModel):
-    """A vector-store search result; ``payload`` is the stored Chunk dump."""
+    """A vector-store search result.
+
+    ``payload`` is the domain ``Chunk`` dump returned across the ``VectorStore``
+    port: it validates losslessly as ``Chunk`` (ADR 0010). Storage-only fields
+    may exist in the adapter's record but must not cross this boundary.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
