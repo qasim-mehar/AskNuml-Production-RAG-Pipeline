@@ -6,12 +6,10 @@ from packages.retrieval.tests.fixtures.corpus import build_corpus
 from uni_rag_core import Language, ScoredChunk
 from uni_rag_retrieval.domain.prompts import (
     ANSWER_SYSTEM,
-    REWRITE_SYSTEM,
     ROUTER_SYSTEM,
     abstention_reason,
     abstention_text,
     build_answer_prompt,
-    build_rewrite_prompt,
     build_router_prompt,
     format_data_block,
     next_step_text,
@@ -80,15 +78,3 @@ def test_abstention_fields_are_structured_and_free_of_invented_contacts() -> Non
         assert abstention_text(typed)
         assert abstention_reason(typed)
         assert next_step_text(typed)
-
-
-def test_rewrite_prompt_is_query_only_and_language_agnostic() -> None:
-    chunks = _scored()
-    query = "پارکنگ کی فیس کتنی ہے؟"
-    prompt = build_rewrite_prompt(query)
-    assert query in prompt
-    assert "RETRIEVED_DATA" not in prompt
-    for chunk in chunks:
-        assert chunk.chunk.text not in prompt
-        assert chunk.chunk.source_url not in prompt
-    assert "Keep the original language" in REWRITE_SYSTEM

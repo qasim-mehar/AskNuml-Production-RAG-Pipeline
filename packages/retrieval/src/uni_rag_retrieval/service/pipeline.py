@@ -52,11 +52,6 @@ from uni_rag_retrieval.domain.router import (
     parse_route_response,
     route,
 )
-from uni_rag_retrieval.service.retry_rewrite import (
-    RetryRewriteConfig,
-    RetryRewriteRequest,
-    retry_rewrite,
-)
 
 _log = get_logger(__name__)
 
@@ -237,9 +232,9 @@ class RetrievalPipeline:
 
     ``search_mode``, ``rerank_enabled`` and ``freshness_boost_enabled`` are the
     named, constructor-injected ablation axes handed to Lane F.
-    ``retry_rewrite_enabled`` is off by default: the first graph node is only
-    used once Lane F has measured its eval row (L1, L16). When off, ``run``
-    follows the original linear path byte for byte.
+    ``retry_rewrite_enabled`` and ``retry_rewrite_iterations`` remain as dormant
+    constructor flags after the node's L16 verdict (zero measured gain); ``run``
+    always follows the linear path byte for byte (L1, L16).
     """
 
     def __init__(
@@ -290,8 +285,6 @@ class RetrievalPipeline:
         self._rrf_k = rrf_k
         self._candidate_multiplier = candidate_multiplier
         self._freshness_half_life_days = freshness_half_life_days
-        self._retry_rewrite_enabled = retry_rewrite_enabled
-        self._retry_rewrite_config = RetryRewriteConfig(max_iterations=retry_rewrite_iterations)
 
     def run(self, query: Query) -> Answer:
         """Run the pipeline; return citations or an explicit abstention."""
@@ -331,40 +324,6 @@ class RetrievalPipeline:
             half_life_days=self._freshness_half_life_days,
         )
         top_score = scored[0].score if scored else 0.0
-        if self._retry_rewrite_enabled and top_score < self._settings.abstention_threshold:
-            outcome = retry_rewrite(
-                RetryRewriteRequest(
-                    query_text=decision.normalized_text,
-                    scored=scored,
-                    llm=self._llm,
-                    embedder=self._embedder,
-                    vector_store=self._vector_store,
-                    reranker=self._reranker,
-                    filters=decision.filters,
-                    language=decision.language,
-                    top_k=top_k,
-                    threshold=self._settings.abstention_threshold,
-                    config=self._retry_rewrite_config,
-                    search_mode=self._search_mode,
-                    candidate_multiplier=self._candidate_multiplier,
-                    rrf_k=self._rrf_k,
-                    chunk_source=self._chunk_source,
-                    rerank_enabled=self._rerank_enabled,
-                    freshness_boost_enabled=self._freshness_enabled,
-                    now=now,
-                    freshness_half_life_days=self._freshness_half_life_days,
-                )
-            )
-            if outcome.attempts:
-                _log.info(
-                    "retry_rewrite",
-                    query_id=query.query_id,
-                    attempts=outcome.attempts,
-                    top_score=outcome.top_score,
-                    strong=outcome.strong,
-                )
-            scored = list(outcome.scored)
-            top_score = outcome.top_score
         if not scored or top_score < self._settings.abstention_threshold:
             _log.info("abstain", query_id=query.query_id, top_score=top_score)
             return build_abstention(query, language=decision.language)

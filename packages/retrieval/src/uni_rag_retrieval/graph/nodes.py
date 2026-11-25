@@ -1,9 +1,9 @@
 """Node registry scaffold: names, purposes and required eval rows (L16).
 
-Implemented entries map to thin wrappers over plain ``service`` functions; the
-wrapper holds no logic (L15). Future control-flow nodes are documented with a
-named purpose and the eval row they must earn before they are added. Only
-``retry_rewrite`` is live, and it is off by default until Lane F measures it.
+Implemented entries map to plain ``service`` functions, so node logic stays in
+``service`` (L9, L15). Future control-flow nodes are documented with a named
+purpose and the eval row they must earn before they are added. No node is live:
+``retry_rewrite`` was removed after its L16 verdict showed zero gain.
 """
 
 from __future__ import annotations
@@ -12,23 +12,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from uni_rag_retrieval.service import pipeline as service
-from uni_rag_retrieval.service.retry_rewrite import (
-    RetryRewriteRequest,
-    RewriteOutcome,
-)
-from uni_rag_retrieval.service.retry_rewrite import (
-    retry_rewrite as retry_rewrite_service,
-)
-
-
-def retry_rewrite_node(request: RetryRewriteRequest) -> RewriteOutcome:
-    """Thin graph node: delegate grading, rewrite and re-search to the service.
-
-    There is no framework import here — LangGraph calls this plain callable when
-    the dependency is promoted (ADR 0005 does not park it) — and no node logic
-    lives in ``graph/`` (L15, L16).
-    """
-    return retry_rewrite_service(request)
 
 
 @dataclass(frozen=True)
@@ -83,15 +66,6 @@ NODE_SPECS: dict[str, NodeSpec] = {
         eval_row="Faithfulness and citation-resolution rate on mini-golden.json.",
         handler=service.synthesize_answer,
     ),
-    "retry_rewrite": NodeSpec(
-        name="retry_rewrite",
-        purpose="Grade retrieval, rewrite a weak query via the LLM port and re-search, capped.",
-        eval_row=(
-            "recall@k gain vs single pass at k=5 on weak-evidence rows; "
-            "remove the node if the measured gain is zero (L16)."
-        ),
-        handler=retry_rewrite_node,
-    ),
     "clarify": NodeSpec(
         name="clarify",
         purpose="Ask the student for a missing required filter instead of guessing.",
@@ -113,4 +87,4 @@ NODE_REGISTRY: dict[str, Callable[..., object]] = {
     name: spec.handler for name, spec in NODE_SPECS.items() if spec.handler is not None
 }
 
-__all__ = ["NODE_REGISTRY", "NODE_SPECS", "NodeSpec", "retry_rewrite_node"]
+__all__ = ["NODE_REGISTRY", "NODE_SPECS", "NodeSpec"]
