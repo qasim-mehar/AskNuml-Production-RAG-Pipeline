@@ -25,8 +25,32 @@
   committed integrated tables, hand in the composition with `--pipeline-factory
   module:attr --backend <label> --corpus <label> --clock <label>` (same flags as the gate).
 - `reports/summary.md` — includes the L16 graph-node table. Its rows come from Lane E's
-  handoff; the six linear stages are measured from the ablation, and the four future
-  control-flow nodes stay `awaiting measurement` (L16).
+  handoff; the six linear stages are measured from the ablation. The `retry_rewrite` row
+  is now measured in milestone 3 (see `reports/retry-rewrite-comparison.md`); the three
+  remaining control-flow nodes stay `awaiting measurement` (L16).
+- `reports/retry-rewrite-comparison.md` / `.csv` — the L16 row measurement: recall@5 on
+  the weak-evidence subset with `retry_rewrite_enabled` off (single pass) and on (cap 1),
+  per language and overall, with the pure KEEP/REMOVE verdict printed alongside its numbers.
+- `reports/strategy-comparison.md` / `.csv` — the chunking ablation rerun with two corpora:
+  the same fixture documents indexed once under `fixed_window` and once under
+  `sentence_boundary`, each queried against its own corpus. Golden ids are translated
+  into each corpus, so no reference dangles (L12). A tie is reported as measured (L1).
+- `composition.py` — the run-only pipeline factory handed in by configuration. It lives in
+  `eval/` (not in the shipped `uni_rag_eval` package, which imports only `uni_rag_core`).
+  It composes Lane E's public `RetrievalPipeline` from core ports with real offline
+  adapters, sets the injected `retry_rewrite` flag, and applies the labelled **in-memory**
+  ADR-0010 strip because Lane D's boundary strip has not merged. The backend label ends
+  in `ADR0010-strip|strip_source=in-memory`. No live provider or network call.
+
+To regenerate the milestone-3 reports byte-identically (L4):
+
+```
+uv run python -m uni_rag_eval.service.run --mode m3 \
+  --pipeline-factory eval.composition:build_pipeline \
+  --backend 'fetcher=fake|parser=docling|chunking=strategies|vector=qdrant_local|objects=fake|metadata=none|clock=fake|embedder=google_genai|reranker=fake|llm=google_genai|live=False|parser_engine=fixture-reader|adapters=real-offline|ADR0010-strip|strip_source=in-memory' \
+  --corpus fixture-corpus-v1-integrated \
+  --clock 'FakeClock(2026-01-01T00:00:00+00:00)'
+```
 
 ## Gate
 

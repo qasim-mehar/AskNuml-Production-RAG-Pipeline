@@ -6,7 +6,8 @@ set of fixture paths that were verified to exist.
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+import re
+from collections.abc import Collection, Mapping, Sequence
 from datetime import datetime
 from hashlib import sha256
 from typing import Any
@@ -16,12 +17,20 @@ from pydantic import ValidationError as PydanticValidationError
 
 from uni_rag_core.errors import ValidationError as EvaluationValidationError
 from uni_rag_core.schemas import Chunk, DocType, Language
+from uni_rag_eval.domain.variant import (
+    FIXED_WINDOW,
+    INTEGRATED_CHUNKING,
+    SENTENCE_BOUNDARY,
+)
 
 REQUIRED_LANGUAGES: tuple[Language, ...] = (
     Language.EN,
     Language.UR,
     Language.ROMAN_URDU,
 )
+# Latin and Urdu sentence terminators. Language-neutral, matching Lane C's
+# sentence strategy, which honours both marks (L7).
+_SENTENCE = re.compile(r"[^.!?۔؟]+[.!?۔؟]*", flags=re.UNICODE)
 
 
 class GoldenRecord(BaseModel):
@@ -218,3 +227,103 @@ def chunks_from_registry(registry: FixtureRegistry) -> list[Chunk]:
                 )
             )
     return chunks
+
+
+def _sentences(text: str) -> tuple[str, ...]:
+    """Split text on Latin and Urdu sentence marks, discarding empty fragments."""
+    return tuple(part.strip() for part in _SENTENCE.findall(text) if part.strip())
+
+
+def _require_strategy(strategy: str) -> str:
+    if strategy not in (FIXED_WINDOW, SENTENCE_BOUNDARY):
+        raise EvaluationValidationError(
+            "Per-strategy corpora need one published chunking strategy",
+            context={"strategy": strategy, "integrated": INTEGRATED_CHUNKING},
+        )
+    return strategy
+
+
+def chunks_for_strategy(registry: FixtureRegistry, strategy: str) -> list[Chunk]:
+    """Index the same fixture documents under one chunking strategy.
+
+    ``fixed_window`` keeps the registry's hand-written chunk ids and text.
+    ``sentence_boundary`` re-cuts every registry chunk at sentence marks and
+    gives each sentence a derived id, so the two corpora have genuinely
+    different chunk-id sets and different content hashes (L1/L4/L16). The
+    provenance fields (doc id, source url, heading, crawl date, language, page)
+    are carried over unchanged; only the boundaries and ids differ.
+    """
+    _require_strategy(strategy)
+    if strategy == FIXED_WINDOW:
+        return chunks_from_registry(registry)
+    chunks: list[Chunk] = []
+    for doc in registry.documents:
+        crawled = datetime.fromisoformat(doc.last_crawled)
+        if crawled.tzinfo is None:
+            raise EvaluationValidationError(
+                "Fixture last_crawled must be timezone-aware",
+                context={"doc_id": doc.doc_id, "last_crawled": doc.last_crawled},
+            )
+        for chunk in doc.chunks:
+            sentences = _sentences(chunk.text) or (chunk.text,)
+            for index, sentence in enumerate(sentences):
+                chunks.append(
+                    Chunk(
+                        chunk_id=f"{chunk.chunk_id}::sb{index:02d}",
+                        doc_id=doc.doc_id,
+                        source_url=doc.source_url,
+                        heading_path=list(chunk.heading_path),
+                        content_hash=sha256(sentence.encode("utf-8")).hexdigest(),
+                        last_crawled=crawled,
+                        doc_type=doc.doc_type,
+                        version=doc.version,
+                        text=sentence,
+                        language=chunk.language,
+                        page=chunk.page,
+                    )
+                )
+    return chunks
+
+
+def translate_expected_ids(
+    registry: FixtureRegistry, chunk_ids: Sequence[str], strategy: str
+) -> tuple[str, ...]:
+    """Map registry chunk ids onto the ids actually indexed under ``strategy``.
+
+    This keeps golden references resolvable in a per-strategy corpus rather
+    than letting them dangle (L12). A missing id is an error, never a silent
+    empty mapping.
+    """
+    _require_strategy(strategy)
+    if strategy == FIXED_WINDOW:
+        return tuple(chunk_ids)
+    by_id = {chunk.chunk_id: chunk.text for doc in registry.documents for chunk in doc.chunks}
+    translated: list[str] = []
+    for chunk_id in chunk_ids:
+        text = by_id.get(chunk_id)
+        if text is None:
+            raise EvaluationValidationError(
+                "Golden record references a chunk outside the fixture corpus",
+                context={"unknown_chunk_id": chunk_id},
+            )
+        sentences = _sentences(text) or (text,)
+        translated.extend(f"{chunk_id}::sb{index:02d}" for index in range(len(sentences)))
+    return tuple(translated)
+
+
+def golden_for_strategy(
+    golden_set: GoldenSet, registry: FixtureRegistry, strategy: str
+) -> GoldenSet:
+    """Return a golden set whose expected chunk ids exist in a strategy's corpus."""
+    indexed_ids = {chunk.chunk_id for chunk in chunks_for_strategy(registry, strategy)}
+    records: list[GoldenRecord] = []
+    for record in golden_set.records:
+        expected = list(translate_expected_ids(registry, record.expected_chunk_ids, strategy))
+        dangling = sorted(set(expected) - indexed_ids)
+        if dangling:
+            raise EvaluationValidationError(
+                "Per-strategy golden reference dangles against the indexed corpus",
+                context={"record_id": record.id, "dangling_chunk_ids": dangling},
+            )
+        records.append(record.model_copy(update={"expected_chunk_ids": expected}))
+    return golden_set.model_copy(update={"records": records})

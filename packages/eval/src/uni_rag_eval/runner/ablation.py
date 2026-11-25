@@ -7,11 +7,15 @@ import io
 import re
 from collections.abc import Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from uni_rag_core import ValidationError
 from uni_rag_eval.domain.golden import REQUIRED_LANGUAGES
-from uni_rag_eval.domain.variant import NodePurposeRow
+from uni_rag_eval.domain.variant import CHUNKING_STRATEGIES, NodePurposeRow
 from uni_rag_eval.runner.harness import MetricScores, RunResult
+
+if TYPE_CHECKING:
+    from uni_rag_eval.service.run import RetryRewriteComparison, StrategyComparison
 
 _METRIC_COLUMNS: tuple[tuple[str, str], ...] = (
     ("recall_at_k", "recall@{k}"),
@@ -44,10 +48,20 @@ def _slug(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
+def adr0010_strip_label(backend: str) -> str:
+    """State which ADR-0010 payload strip produced the numbers (L1)."""
+    if "strip_source=real-adapter" in backend:
+        return "real D2 adapter boundary strip"
+    if "strip_source=in-memory" in backend:
+        return "labelled in-memory boundary strip (D2 not merged)"
+    return "unlabelled strip — backend must name one (L1)"
+
+
 def _metadata_lines(result: RunResult) -> list[str]:
     context = result.context
     return [
         f"- backend: `{context.backend}`",
+        f"- ADR-0010 strip: `{adr0010_strip_label(context.backend)}`",
         f"- corpus: `{context.corpus}`",
         f"- golden set: `{context.golden_id}`",
         f"- variant: `{context.variant_name}` (chunking: `{context.chunking_strategy}`)",
@@ -198,6 +212,7 @@ def summary_markdown(results: Sequence[RunResult], node_rows: Sequence[NodePurpo
         "",
         f"- variants: `{len(results)}`",
         f"- backend: `{first.backend if first else 'unknown'}`",
+        f"- ADR-0010 strip: `{adr0010_strip_label(first.backend if first else '')}`",
         f"- corpus: `{first.corpus if first else 'unknown'}`",
         f"- golden set: `{first.golden_id if first else 'unknown'}`",
         f"- clock: `{first.clock if first else 'unknown'}`",
@@ -234,3 +249,151 @@ def write_ablation_report(
         paths.extend(write_variant_tables(result, report_dir))
     paths.extend(write_summary(results, report_dir, node_rows))
     return paths
+
+
+def _comparison_labels(results: Sequence[RunResult]) -> list[str]:
+    first = results[0].context if results else None
+    return [
+        f"- backend: `{first.backend if first else 'unknown'}`",
+        f"- ADR-0010 strip: `{adr0010_strip_label(first.backend if first else '')}`",
+        f"- clock: `{first.clock if first else 'unknown'}`",
+        f"- golden set: `{first.golden_id if first else 'unknown'}`",
+        f"- top_k (k): `{first.top_k if first else 'unknown'}`",
+        "- every row is a measured run; a zero or tied row is a result (L1).",
+    ]
+
+
+def retry_comparison_rows(comparison: RetryRewriteComparison) -> list[tuple[str, ...]]:
+    """Rows for the L16 retry row: weak-row recall@5 on/off and the gain (L7)."""
+    header = ("language", "n_weak", "recall@5_off", "recall@5_on", "gain")
+    rows: list[tuple[str, ...]] = [header]
+    for language in (*[value.value for value in REQUIRED_LANGUAGES], "overall"):
+        count = (
+            len(comparison.subset.record_ids)
+            if language == "overall"
+            else comparison.subset.counts_by_language.get(language, 0)
+        )
+        rows.append(
+            (
+                language,
+                str(count),
+                _fmt(comparison.recall_off[language]),
+                _fmt(comparison.recall_on[language]),
+                f"{comparison.gains[language]:+.6f}",
+            )
+        )
+    return rows
+
+
+def retry_comparison_markdown(comparison: RetryRewriteComparison) -> str:
+    """Render the retry verdict table with its own labels and verdict (L1/L16)."""
+    composition = ", ".join(
+        f"{language} {count}"
+        for language, count in sorted(comparison.subset.counts_by_language.items())
+    )
+    header = [
+        "# retry_rewrite: single pass vs retry-on",
+        "",
+        *_comparison_labels([comparison.single_pass]),
+        f"- weak-evidence definition: answerable row with single-pass confidence "
+        f"< {comparison.subset.threshold}; composition: {composition or 'none'} (L7)",
+        f"- L16 verdict: `{comparison.verdict.value}` (zero or negative overall gain removes)",
+        "- scope: this verdict is for the labelled offline backend above only; the "
+        "rewrite transport there echoes its prompt, so a live-provider re-run is "
+        "required before treating the verdict as production evidence (opt-in, parked).",
+        "",
+        _markdown_table(retry_comparison_rows(comparison)),
+        "",
+    ]
+    return "\n".join(header)
+
+
+def write_retry_comparison(comparison: RetryRewriteComparison, report_dir: Path) -> list[Path]:
+    """Write both variant tables and the retry comparison pair."""
+    report_dir.mkdir(parents=True, exist_ok=True)
+    paths: list[Path] = []
+    for result in (comparison.single_pass, comparison.retry_on):
+        paths.extend(write_variant_tables(result, report_dir))
+    markdown = _write_text(
+        report_dir / "retry-rewrite-comparison.md", retry_comparison_markdown(comparison)
+    )
+    csv_path = _write_text(
+        report_dir / "retry-rewrite-comparison.csv", _csv_table(retry_comparison_rows(comparison))
+    )
+    return [*paths, markdown, csv_path]
+
+
+def strategy_comparison_rows(comparison: StrategyComparison) -> list[tuple[str, ...]]:
+    """Rows keyed by language, with both corpora and their recall@5 delta (L7)."""
+    fixed = comparison.results["fixed_window"]
+    sentence = comparison.results["sentence_boundary"]
+    header = ("language", "corpus_fixed_window", "corpus_sentence_boundary", "gain")
+    rows: list[tuple[str, ...]] = [header]
+    for language in (*[value.value for value in REQUIRED_LANGUAGES], "overall"):
+        left = fixed.overall if language == "overall" else fixed.scores_by_language[language]
+        right = sentence.overall if language == "overall" else sentence.scores_by_language[language]
+        rows.append(
+            (
+                language,
+                _fmt(left.recall_at_k),
+                _fmt(right.recall_at_k),
+                f"{comparison.recall_gains[language]:+.4f}",
+            )
+        )
+    return rows
+
+
+def strategy_comparison_markdown(comparison: StrategyComparison) -> str:
+    """Render the per-strategy corpus comparison, including a measured tie (L1)."""
+    header = [
+        "# Chunking strategy ablation: per-strategy corpora",
+        "",
+        *_comparison_labels(list(comparison.results.values())),
+        "- corpora: the same fixture documents indexed once under fixed_window and "
+        "once under sentence_boundary; each strategy queried against its own corpus.",
+        "- chunk-id sets are distinct by construction; golden ids are translated into "
+        "each corpus so no reference dangles (L12).",
+        f"- differential effect: {'measured tie (no differential effect)' if comparison.tied else 'measured non-zero delta'}",
+        "",
+        _markdown_table(strategy_comparison_rows(comparison)),
+        "",
+    ]
+    return "\n".join(header)
+
+
+def write_strategy_comparison(comparison: StrategyComparison, report_dir: Path) -> list[Path]:
+    """Write one labelled table pair per strategy plus the comparison pair."""
+    report_dir.mkdir(parents=True, exist_ok=True)
+    paths: list[Path] = []
+    for strategy in CHUNKING_STRATEGIES:
+        paths.extend(write_variant_tables(comparison.results[strategy], report_dir))
+    markdown = _write_text(
+        report_dir / "strategy-comparison.md", strategy_comparison_markdown(comparison)
+    )
+    csv_path = _write_text(
+        report_dir / "strategy-comparison.csv", _csv_table(strategy_comparison_rows(comparison))
+    )
+    return [*paths, markdown, csv_path]
+
+
+def write_latest(
+    results: Sequence[RunResult], report_dir: Path, node_rows: Sequence[NodePurposeRow]
+) -> Path:
+    """Assemble the committed latest summary from the summary and default variant tables."""
+    from uni_rag_eval.domain.variant import DEFAULT_VARIANT
+
+    default = next(
+        (result for result in results if result.context.variant_name == DEFAULT_VARIANT.name),
+        results[0],
+    )
+    text = "\n".join(
+        [
+            summary_markdown(results, node_rows).rstrip("\n"),
+            "",
+            "---",
+            "",
+            variant_table_markdown(default).rstrip("\n"),
+            "",
+        ]
+    )
+    return _write_text(report_dir / "latest.md", text)
