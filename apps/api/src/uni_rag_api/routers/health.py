@@ -5,11 +5,15 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from uni_rag_api.deps.state import health_probe
+from uni_rag_api.openapi import declare_request_id
 from uni_rag_api.ports import HealthProbe
 from uni_rag_api.schemas import ErrorBody, LiveStatus, ReadyStatus
 from uni_rag_core import PortError
 
-router = APIRouter(tags=["health"])
+router = APIRouter(
+    tags=["health"],
+    responses={200: declare_request_id({"description": "Successful Response"})},
+)
 
 Probe = Annotated[HealthProbe, Depends(health_probe)]
 
@@ -24,7 +28,9 @@ def live() -> LiveStatus:
     "/health/ready",
     response_model=ReadyStatus,
     summary="Readiness probe",
-    responses={503: {"model": ErrorBody, "description": "Injected ports are not ready"}},
+    responses={
+        503: declare_request_id({"model": ErrorBody, "description": "Injected ports are not ready"})
+    },
 )
 def ready(probe: Probe) -> ReadyStatus:
     """Report readiness after checking the injected ports' fake health."""

@@ -13,8 +13,8 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from uni_rag_api.fixtures import IMAGE_BYTES, IMAGE_CONTENT_TYPES
-from uni_rag_api.ports import AnswerService
-from uni_rag_api.service import FakeAnswerService
+from uni_rag_api.ports import AnswerService, PapersProvider
+from uni_rag_api.service import FakeAnswerService, FakePapersProvider
 from uni_rag_core import (
     LLM,
     ApiSection,
@@ -92,6 +92,7 @@ class BackendBundle:
     backend: Backend
     answer_service: AnswerService
     object_store: ObjectStore
+    papers_provider: PapersProvider
 
 
 class PipelineAnswerService:
@@ -197,8 +198,13 @@ def build_backend(
     ports: PipelinePorts | None = None,
     object_store: ObjectStore | None = None,
     answer_service: AnswerService | None = None,
+    papers_provider: PapersProvider | None = None,
 ) -> BackendBundle:
-    """Resolve the flag and wire answer/image services with fakes as the default."""
+    """Resolve the flag and wire answer/image services with fakes as the default.
+
+    The papers finder is real but fixture-backed on both backends: parsed-record
+    persistence is parked pending a Lane 0 promotion ADR (L1, L5).
+    """
     resolved = resolve_backend(settings, backend)
     live = resolved is Backend.REAL and settings.providers.live_enabled
     store = object_store if object_store is not None else _real_object_store(settings, live=live)
@@ -212,8 +218,20 @@ def build_backend(
             _real_pipeline(settings, clock=clock, ports=ports or PipelinePorts(), live=live)
         )
 
-    _log.info("backend.selected", backend=resolved.value, live_providers=live)
-    return BackendBundle(backend=resolved, answer_service=service, object_store=store)
+    resolved_papers = papers_provider if papers_provider is not None else FakePapersProvider()
+    _log.info(
+        "backend.selected",
+        backend=resolved.value,
+        live_providers=live,
+        papers_provider="fake",
+        papers_note="fixture-backed until parsed-record persistence is promoted",
+    )
+    return BackendBundle(
+        backend=resolved,
+        answer_service=service,
+        object_store=store,
+        papers_provider=resolved_papers,
+    )
 
 
 __all__ = [
@@ -221,6 +239,7 @@ __all__ = [
     "BackendBundle",
     "PipelineAnswerService",
     "PipelinePorts",
+    "PapersProvider",
     "build_backend",
     "ephemeral_settings",
     "resolve_backend",

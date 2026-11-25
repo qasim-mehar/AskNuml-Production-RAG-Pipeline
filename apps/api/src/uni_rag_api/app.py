@@ -16,8 +16,8 @@ from uni_rag_api.composition import (
 from uni_rag_api.errors import register_error_handlers
 from uni_rag_api.middleware.rate_limit import RateLimitMiddleware
 from uni_rag_api.middleware.trace import TraceMiddleware
-from uni_rag_api.ports import AnswerService, HealthProbe
-from uni_rag_api.routers import feedback, health, images, query
+from uni_rag_api.ports import AnswerService, HealthProbe, PapersProvider
+from uni_rag_api.routers import feedback, health, images, papers, query
 from uni_rag_api.service import FakeHealthProbe, ObjectStoreImageService, as_typed_store
 from uni_rag_core import Clock, FakeClock, ObjectStore, Settings
 from uni_rag_core.logging import TraceLogger, get_logger
@@ -33,6 +33,7 @@ def create_app(
     backend: Backend | None = None,
     pipeline_ports: PipelinePorts | None = None,
     object_store: ObjectStore | None = None,
+    papers_provider: PapersProvider | None = None,
 ) -> FastAPI:
     """Build the API with folded core settings and injected ports (fakes by default).
 
@@ -49,6 +50,7 @@ def create_app(
         ports=pipeline_ports,
         object_store=object_store,
         answer_service=answer_service,
+        papers_provider=papers_provider,
     )
 
     app = FastAPI(title="uni-rag API", version=resolved_settings.api.api_version)
@@ -58,6 +60,7 @@ def create_app(
     app.state.answer_service = bundle.answer_service
     app.state.object_store = bundle.object_store
     app.state.image_service = ObjectStoreImageService(as_typed_store(bundle.object_store))
+    app.state.papers_provider = bundle.papers_provider
     app.state.health_probe = health_probe if health_probe is not None else FakeHealthProbe()
 
     register_error_handlers(app)
@@ -79,6 +82,7 @@ def create_app(
     app.include_router(query.router)
     app.include_router(feedback.router)
     app.include_router(images.router)
+    app.include_router(papers.router)
     return app
 
 
