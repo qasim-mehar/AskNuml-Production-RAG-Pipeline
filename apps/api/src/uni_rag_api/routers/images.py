@@ -11,10 +11,29 @@ from fastapi.responses import StreamingResponse
 
 from uni_rag_api.deps.auth import EnforcedApiKey
 from uni_rag_api.deps.state import image_service
+from uni_rag_api.openapi import declare_request_id
 from uni_rag_api.ports import ImageService
 from uni_rag_api.schemas import ErrorBody
 
-router = APIRouter(prefix="/api", tags=["images"])
+router = APIRouter(
+    prefix="/api",
+    tags=["images"],
+    responses={
+        200: declare_request_id(
+            {
+                "content": {"image/png": {"schema": {"type": "string", "format": "binary"}}},
+                "description": "Stored page-image bytes",
+            }
+        ),
+        404: declare_request_id(
+            {"model": ErrorBody, "description": "No object for this reference id"}
+        ),
+        422: declare_request_id({"model": ErrorBody, "description": "Typed validation error"}),
+        503: declare_request_id(
+            {"model": ErrorBody, "description": "Upstream object store failure"}
+        ),
+    },
+)
 Service = Annotated[ImageService, Depends(image_service)]
 
 
@@ -22,15 +41,6 @@ Service = Annotated[ImageService, Depends(image_service)]
     "/images/{ref_id:path}",
     response_class=StreamingResponse,
     summary="Stream a stored page image by reference id",
-    responses={
-        200: {
-            "content": {"image/png": {"schema": {"type": "string", "format": "binary"}}},
-            "description": "Stored page-image bytes",
-        },
-        404: {"model": ErrorBody, "description": "No object for this reference id"},
-        422: {"model": ErrorBody, "description": "Typed validation error"},
-        503: {"model": ErrorBody, "description": "Upstream object store failure"},
-    },
 )
 def get_image(ref_id: str, service: Service, _key: EnforcedApiKey) -> StreamingResponse:
     """Stream stored bytes with the content type recorded by the object store."""

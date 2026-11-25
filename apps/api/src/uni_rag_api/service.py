@@ -4,15 +4,17 @@ Services own orchestration; routers only route and serialise (L9). No network
 call happens here: the object store arrives as an injected synchronous port.
 """
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from mimetypes import guess_type
 
-from uni_rag_api.fixtures import CORPUS, FALLBACK_ANSWER
+from uni_rag_api.fixtures import CORPUS, FALLBACK_ANSWER, PAPER_RECORDS
 from uni_rag_api.ports import (
     AnswerService,
     FakeCorpus,
     HealthProbe,
     ImageService,
+    PaperFilters,
+    PaperRecord,
     StoredImage,
     TypedObjectStore,
 )
@@ -37,6 +39,31 @@ class FakeAnswerService:
     def tokens(self, answer: Answer) -> Iterator[str]:
         """Yield space-delimited tokens; ``" ".join(tokens) == answer.text``."""
         yield from answer.text.split(" ")
+
+
+class FakePapersProvider:
+    """Deterministic fixture-backed finder; no store or network (L3, L4)."""
+
+    def __init__(self, records: Sequence[PaperRecord] | None = None) -> None:
+        self._records: tuple[PaperRecord, ...] = tuple(
+            records if records is not None else PAPER_RECORDS
+        )
+
+    def find(self, filters: PaperFilters) -> list[PaperRecord]:
+        """Return records matching every filter, in fixture order, then paginate."""
+        matched = [record for record in self._records if _matches_paper_filters(record, filters)]
+        return matched[filters.offset : filters.offset + filters.limit]
+
+
+def _matches_paper_filters(record: PaperRecord, filters: PaperFilters) -> bool:
+    """AND every supplied filter; a None filter is no constraint (L4)."""
+    return (
+        (filters.course_code is None or record.course_code == filters.course_code)
+        and (filters.year is None or record.year == filters.year)
+        and (filters.term is None or record.term == filters.term)
+        and (filters.exam_type is None or record.exam_type == filters.exam_type)
+        and (filters.department is None or record.department == filters.department)
+    )
 
 
 class FakeHealthProbe:
@@ -114,6 +141,7 @@ __all__ = [
     "AnswerService",
     "FakeAnswerService",
     "FakeHealthProbe",
+    "FakePapersProvider",
     "HealthProbe",
     "ImageService",
     "KeySuffixTypedStore",

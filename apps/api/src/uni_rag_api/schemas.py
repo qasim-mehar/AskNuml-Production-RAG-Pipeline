@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from uni_rag_api.ports import PaperRecord
 from uni_rag_core import Answer, Citation, ImageRef, Language, Query
 
 
@@ -50,6 +51,14 @@ class FeedbackRequest(BaseModel):
     query_id: str | None = None
 
 
+class PaperSearchResult(BaseModel):
+    """Finder response; the ``results`` key matches Lane H's strict mirror."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    results: list[PaperRecord]
+
+
 class TokenEvent(BaseModel):
     """One ordered SSE token payload."""
 
@@ -75,6 +84,8 @@ __all__ = [
     "ImageRef",
     "Language",
     "LiveStatus",
+    "PaperRecord",
+    "PaperSearchResult",
     "Query",
     "ReadyStatus",
     "TokenEvent",

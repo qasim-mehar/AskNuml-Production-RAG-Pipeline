@@ -8,6 +8,7 @@ image route can be tested without a live object store.
 
 from datetime import UTC, datetime
 
+from uni_rag_api.ports import PaperRecord
 from uni_rag_core import Answer, Citation, ImageRef, Language
 
 QUERY_EN = "What is the weight of the midterm?"
@@ -185,6 +186,86 @@ REAL_BACKEND_ANSWER = Answer(
     abstention_reason=None,
 )
 
+# Past-paper finder fixtures (L4, L5, L7). Source URLs are the frozen values
+# used by the answer/image fixtures above; page numbers and the image key are
+# frozen here — the provider copies provenance and invents no URL or crawl time.
+PAPER_RECORDS: tuple[PaperRecord, ...] = (
+    PaperRecord(
+        question_id="question-paper-2024-1",
+        doc_id="doc-paper-2024",
+        source_url=_IMAGE_CITATION.source_url,
+        page=1,
+        question_number=1,
+        text="What is the time complexity of binary search?",
+        year=2024,
+        subject="Computer Science",
+        options=["O(1)", "O(log n)", "O(n)"],
+        image_ref=ImageRef(
+            ref_id="images/papers/2024-p1.png",
+            source_url=_IMAGE_CITATION.source_url,
+            page=1,
+            caption="CS-101 past paper page 1",
+            image_url="/api/images/images/papers/2024-p1.png",
+        ),
+        course_code="CS-101",
+        term="fall",
+        exam_type="final",
+        department="Computer Science",
+        last_crawled=LAST_CRAWLED,
+    ),
+    PaperRecord(
+        question_id="question-paper-2024-2",
+        doc_id="doc-cs101-ur",
+        source_url=_UR_CITATION.source_url,
+        page=3,
+        question_number=2,
+        text="بائنری سرچ کی Time Complexity کیا ہے؟",
+        year=2024,
+        subject="کمپیوٹر سائنس",
+        options=[],
+        image_ref=None,
+        course_code="CS-101",
+        term="fall",
+        exam_type="final",
+        department="کمپیوٹر سائنس",
+        last_crawled=LAST_CRAWLED,
+    ),
+    PaperRecord(
+        question_id="question-paper-2023-7",
+        doc_id="doc-cs101",
+        source_url=_EN_CITATION.source_url,
+        page=3,
+        question_number=7,
+        text="Define a binary search tree.",
+        year=2023,
+        subject="Computer Science",
+        options=[],
+        image_ref=None,
+        course_code="CS-101",
+        term="spring",
+        exam_type="midterm",
+        department="Computer Science",
+        last_crawled=LAST_CRAWLED,
+    ),
+    PaperRecord(
+        question_id="question-paper-2024-urdu-3",
+        doc_id="doc-cs101-ur",
+        source_url=_UR_CITATION.source_url,
+        page=4,
+        question_number=3,
+        text="امتحان میں ایک سوال حل کریں۔",
+        year=2024,
+        subject="اردو",
+        options=[],
+        image_ref=None,
+        course_code="اردو-101",
+        term="fall",
+        exam_type="final",
+        department="کمپیوٹر سائنس",
+        last_crawled=LAST_CRAWLED,
+    ),
+)
+
 # Object-store contents for the fake image route. Keys mirror ImageRef.ref_id
 # values; the Urdu key pins L7 round-tripping through the encoded path segment.
 IMAGE_BYTES: dict[str, bytes] = {
@@ -203,6 +284,7 @@ __all__ = [
     "IMAGE_BYTES",
     "IMAGE_CONTENT_TYPES",
     "LAST_CRAWLED",
+    "PAPER_RECORDS",
     "QUERY_ABSTAIN",
     "QUERY_EN",
     "QUERY_IMAGE",

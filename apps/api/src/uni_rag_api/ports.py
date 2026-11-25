@@ -7,9 +7,10 @@ adapters may be async internally (AGENT.md §4).
 
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol, runtime_checkable
 
-from uni_rag_core import Answer, ObjectStore, Query
+from uni_rag_core import Answer, ObjectStore, PastPaperQuestion, Query
 
 
 @runtime_checkable
@@ -31,6 +32,38 @@ class HealthProbe(Protocol):
 
     def is_ready(self) -> bool:
         """Return True when downstream dependencies are available."""
+        ...
+
+
+class PaperRecord(PastPaperQuestion):
+    """A segmented paper question plus its source's frozen crawl time (L5).
+
+    ``PastPaperQuestion`` stops at core ADR 0007's finder fields; ``last_crawled``
+    is carried here so every returned record is traceable without a core change.
+    """
+
+    last_crawled: datetime
+
+
+@dataclass(frozen=True)
+class PaperFilters:
+    """Typed finder filters and pagination; no settings or environment reads (L8)."""
+
+    course_code: str | None = None
+    year: int | None = None
+    term: str | None = None
+    exam_type: str | None = None
+    department: str | None = None
+    limit: int = 20
+    offset: int = 0
+
+
+@runtime_checkable
+class PapersProvider(Protocol):
+    """Finds past-paper records behind an API-local port (L3)."""
+
+    def find(self, filters: PaperFilters) -> list[PaperRecord]:
+        """Return fixture records matching every supplied filter (AND, L4/L5)."""
         ...
 
 
