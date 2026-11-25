@@ -8,6 +8,7 @@ import {
   IMAGE_REF,
   URDU_ANSWER,
 } from "@/lib/api/mocks/fixtures";
+import contract from "@/lib/api/mocks/openapi-emitted.json";
 import {
   lastMockCall,
   setMockScenario,
@@ -116,11 +117,32 @@ describe("ChatPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Helpful" }));
     fireEvent.click(screen.getByRole("button", { name: "Send feedback" }));
 
-    await waitFor(() => expect(lastMockCall()?.url).toContain("/api/feedback"));
+    await waitFor(() =>
+      expect(new URL(lastMockCall()?.url ?? "http://localhost/").pathname).toBe(
+        contract.conventions.feedback,
+      ),
+    );
     expect(lastMockCall()?.body).toMatchObject({
       answer_id: ENGLISH_ANSWER.answer_id,
       sentiment: "positive",
     });
+  });
+
+  it("keeps feedback retryable and shows the trace id when the API rejects it", async () => {
+    setMockScenario("english");
+    render(<ChatPage />);
+    ask("What is the fee?");
+    await screen.findByRole("region", {
+      name: `Feedback for answer ${ENGLISH_ANSWER.answer_id}`,
+    });
+
+    setMockScenario("feedback422");
+    fireEvent.click(screen.getByRole("button", { name: "Helpful" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send feedback" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("req-feedback-422");
+    expect(screen.queryByText("Thanks for your feedback.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send feedback" })).toBeInTheDocument();
   });
 
   it("surfaces a typed schema error with no partial render for an invalid stream", async () => {
@@ -130,7 +152,7 @@ describe("ChatPage", () => {
     ask("What is the fee?");
 
     await drainStream();
-    expect(screen.getByRole("alert")).toHaveTextContent("Invalid answer event");
+    expect(screen.getByRole("alert")).toHaveTextContent("Invalid citations event");
     expect(screen.queryByText("Partial text only")).not.toBeInTheDocument();
   });
 

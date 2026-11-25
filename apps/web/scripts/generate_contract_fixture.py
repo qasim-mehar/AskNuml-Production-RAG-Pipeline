@@ -1,16 +1,27 @@
-"""Regenerate the core-emitted contract fixture from the frozen Pydantic models.
+"""Regenerate the contract fixtures from core models and the OpenAPI artifact.
 
 Run from the repository root:
     uv run python apps/web/scripts/generate_contract_fixture.py
 
-The Vitest contract suite parses this file with the TypeScript Zod mirrors, so
-mirror fidelity is measured against real core output rather than a hand-written
-copy (L1). This is a development-time generator; tests never import Python.
+Two deterministic files are written to ``apps/web/src/lib/api/mocks``:
+
+* ``core-emitted.json`` — real Pydantic core model dumps, including the optional
+  ADR-0007 provenance fields. The Vitest mirror suite round-trips these through
+  the TypeScript Zod schemas, so mirror fidelity is measured against real core
+  output rather than a hand-written copy (L1).
+* ``openapi-emitted.json`` — example payloads and route strings derived from
+  ``apps/api/openapi.json`` (the served artifact). Tests assert client routes and
+  response shapes against this file instead of hand-written URLs, so artifact
+  drift fails the suite.
+
+This is a development-time generator; tests never import Python or the API.
 """
 
 import json
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "packages" / "core" / "src"))
@@ -21,11 +32,23 @@ from uni_rag_core.schemas.enums import Language  # noqa: E402
 from uni_rag_core.schemas.past_paper import PastPaperQuestion  # noqa: E402
 from uni_rag_core.schemas.query import Query  # noqa: E402
 
-OUTPUT = REPO_ROOT / "apps" / "web" / "src" / "lib" / "api" / "mocks" / "core-emitted.json"
+OUTPUT_DIR = REPO_ROOT / "apps" / "web" / "src" / "lib" / "api" / "mocks"
+OPENAPI = REPO_ROOT / "apps" / "api" / "openapi.json"
+
+CRAWLED_AT = datetime(2026, 11, 20, 9, 30, tzinfo=UTC)
+
+# Routes the artifact does not declare yet. Values come from binding ADRs and
+# Lane H's milestone-1 CONTRACTS.md, never from a hand-written test URL. They are
+# labelled in CONTRACTS.md and raised as CONTRACT-CHANGE notes for Lane 0 / G.
+CONVENTIONS = {
+    "feedback": "/api/v1/feedback",  # ADR 0009
+    "images_prefix": "/api/images/",  # ADR 0007
+    "papers": "/api/papers",  # Lane H assumption; G has not emitted this route
+}
 
 
-def main() -> None:
-    """Emit representative core model dumps as pretty JSON for the web mirror tests."""
+def core_payload() -> dict[str, Any]:
+    """Emit representative core model dumps for every mirrored schema."""
     query = Query(
         query_id="q-contract",
         text="What is the fee?",
@@ -40,12 +63,14 @@ def main() -> None:
         snippet="Fee is 1000",
         page=3,
         score=0.91,
+        last_crawled=CRAWLED_AT,
     )
     image = ImageRef(
         ref_id="img-1",
         source_url="https://uni.example/past/2024",
         page=2,
         caption="Past paper page 2",
+        image_url=f"{CONVENTIONS['images_prefix']}img-1",
     )
     answer = Answer(
         answer_id="a-contract",
@@ -56,6 +81,8 @@ def main() -> None:
         abstained=False,
         confidence=0.91,
         language=Language.EN,
+        next_step=None,
+        abstention_reason=None,
     )
     paper = PastPaperQuestion(
         question_id="pp-1",
@@ -68,6 +95,10 @@ def main() -> None:
         subject="CS",
         options=["3", "4"],
         image_ref=image,
+        course_code="CS",
+        term="fall",
+        exam_type="final",
+        department="Computer Science",
     )
     abstained = Answer(
         answer_id="a-abstain",
@@ -76,8 +107,10 @@ def main() -> None:
         abstained=True,
         confidence=0.0,
         language=Language.UR,
+        next_step="Search the past-paper archive for a course code.",
+        abstention_reason="The retrieved chunks do not state the deadline.",
     )
-    payload = {
+    return {
         "query": json.loads(query.model_dump_json()),
         "citation": json.loads(citation.model_dump_json()),
         "image_ref": json.loads(image.model_dump_json()),
@@ -85,7 +118,112 @@ def main() -> None:
         "past_paper": json.loads(paper.model_dump_json()),
         "abstained_answer": json.loads(abstained.model_dump_json()),
     }
-    OUTPUT.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def example_string(name: str, schema: dict[str, Any]) -> str:
+    """Deterministic string example; format and field name choose the value."""
+    if schema.get("format") == "date-time":
+        return CRAWLED_AT.isoformat().replace("+00:00", "Z")
+    if schema.get("const"):
+        return str(schema["const"])
+    examples = {
+        "source_url": "https://uni.example/source",
+        "image_url": f"{CONVENTIONS['images_prefix']}img-1",
+        "answer_id": "a-artifact",
+        "query_id": "q-artifact",
+        "chunk_id": "c-artifact",
+        "doc_id": "d-artifact",
+        "ref_id": "img-artifact",
+        "code": "upstream_unavailable",
+        "message": "The knowledge service is temporarily unavailable.",
+        "text": "The fee is 1000.",
+        "snippet": "Fee is 1000",
+        "next_step": "Search the past-paper archive.",
+        "abstention_reason": "Evidence is insufficient.",
+        "service": "uni-rag-api",
+        "mime_type": "image/png",
+    }
+    return examples.get(name, f"{name}-artifact")
+
+
+def example_from_schema(
+    schema: dict[str, Any],
+    components: dict[str, Any],
+    name: str = "value",
+) -> Any:
+    """Build one deterministic example from the subset of JSON Schema we serve."""
+    if "default" in schema:
+        return schema["default"]
+    if "$ref" in schema:
+        target = schema["$ref"].rsplit("/", 1)[-1]
+        return example_from_schema(components[target], components, target)
+    if "const" in schema:
+        return schema["const"]
+    if "enum" in schema:
+        return schema["enum"][0]
+    if "anyOf" in schema:
+        branches = [branch for branch in schema["anyOf"] if branch.get("type") != "null"]
+        return example_from_schema(branches[0], components, name)
+    schema_type = schema.get("type")
+    if schema_type == "object" or "properties" in schema:
+        properties = schema.get("properties", {})
+        return {
+            key: example_from_schema(child, components, key) for key, child in properties.items()
+        }
+    if schema_type == "array":
+        return [example_from_schema(schema["items"], components, name)]
+    if schema_type == "string":
+        return example_string(name, schema)
+    if schema_type == "integer":
+        return 3
+    if schema_type == "number":
+        return 0.91
+    if schema_type == "boolean":
+        return False
+    if isinstance(schema.get("additionalProperties"), dict):
+        return {"department": "CS"}
+    raise ValueError(f"Unsupported schema node for {name}: {schema!r}")
+
+
+def path_for_operation(artifact: dict[str, Any], operation_id: str) -> str:
+    """Resolve a served path from its operationId, so tests never hard-code URLs."""
+    for path, methods in artifact["paths"].items():
+        for operation in methods.values():
+            if isinstance(operation, dict) and operation.get("operationId") == operation_id:
+                return path
+    raise RuntimeError(f"OpenAPI artifact is missing operationId {operation_id!r}")
+
+
+def artifact_payload() -> dict[str, Any]:
+    """Derive routes and example payloads from the served OpenAPI artifact."""
+    artifact = json.loads(OPENAPI.read_text(encoding="utf-8"))
+    schemas = artifact["components"]["schemas"]
+    mirrored = ["Query", "Answer", "Citation", "ImageRef", "ErrorBody"]
+    return {
+        "source": (
+            "apps/api/openapi.json (routes and payloads); "
+            "ADR 0007/0009 and Lane H milestone-1 CONTRACTS.md (conventions)"
+        ),
+        "routes": {
+            "query": path_for_operation(artifact, "query_api_v1_query_post"),
+            "stream": path_for_operation(artifact, "stream_api_v1_query_stream_post"),
+        },
+        "conventions": CONVENTIONS,
+        "payloads": {
+            schema_name: example_from_schema(schemas[schema_name], schemas, schema_name)
+            for schema_name in mirrored
+        },
+    }
+
+
+def main() -> None:
+    """Write both fixtures as stable, pretty-printed UTF-8 JSON."""
+    (OUTPUT_DIR / "core-emitted.json").write_text(
+        json.dumps(core_payload(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    (OUTPUT_DIR / "openapi-emitted.json").write_text(
+        json.dumps(artifact_payload(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
 
 
 if __name__ == "__main__":

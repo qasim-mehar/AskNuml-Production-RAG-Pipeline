@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { CITATION } from "@/lib/api/mocks/fixtures";
+import { CITATION, URDU_CITATION } from "@/lib/api/mocks/fixtures";
 
 import { CitationChip } from "./CitationChip";
 
@@ -20,6 +20,18 @@ describe("CitationChip", () => {
     expect(screen.getByRole("link")).toHaveAttribute("rel", "noopener noreferrer");
   });
 
+  it("renders an Urdu citation right-to-left with no invented crawl date", () => {
+    render(
+      <ul>
+        <CitationChip citation={URDU_CITATION} />
+      </ul>,
+    );
+    const link = screen.getByText(URDU_CITATION.snippet);
+    expect(link).toHaveAttribute("dir", "rtl");
+    expect(link).toHaveAttribute("lang", "ur");
+    expect(screen.queryByText(/Updated/)).not.toBeInTheDocument();
+  });
+
   it("does not invent an updated date or page when the payload omits them", () => {
     render(
       <ul>
@@ -31,6 +43,7 @@ describe("CitationChip", () => {
             snippet: "Snippet",
             page: null,
             score: null,
+            last_crawled: null,
           }}
         />
       </ul>,

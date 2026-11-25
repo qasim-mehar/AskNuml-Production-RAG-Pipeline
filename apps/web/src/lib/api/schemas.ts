@@ -3,12 +3,12 @@ import { z } from "zod";
 import { ApiError } from "./errors";
 
 /**
- * TypeScript mirrors of the frozen core schemas. Source of truth:
- * packages/core/src/uni_rag_core/schemas/{query,answer,chunk,enums,past_paper}.py
- * (Pydantic v2, extra="forbid", frozen). These objects are strict: an unknown
- * field is rejected, never carried into the UI. Fidelity is pinned by
- * `schemas.test.ts` against `mocks/core-emitted.json`, which is generated from
- * the Pydantic models themselves.
+ * Strict TypeScript mirrors of every payload Web reads at the edge.
+ * Source of truth: `apps/api/openapi.json` (served artifact) plus the frozen
+ * core Pydantic models for `PastPaperQuestion` (no artifact route yet).
+ * Fidelity is pinned by `schemas.test.ts`, which round-trips both generated
+ * fixtures (`mocks/core-emitted.json`, `mocks/openapi-emitted.json`) through
+ * these mirrors. Unknown fields are rejected, never carried into the UI.
  */
 
 function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown, field: string): T {
@@ -35,6 +35,8 @@ export const ImageRefSchema = z
     page: z.number().int().nullable().default(null),
     caption: z.string().nullable().default(null),
     mime_type: z.string().default("image/png"),
+    /** ADR 0007: real, optional field. The route convention is the fallback. */
+    image_url: z.string().nullable().default(null),
   })
   .strict();
 export type ImageRef = z.infer<typeof ImageRefSchema>;
@@ -47,13 +49,8 @@ export const CitationSchema = z
     snippet: z.string(),
     page: z.number().int().nullable().default(null),
     score: z.number().nullable().default(null),
-    /**
-     * Forward-compatible only: the frozen core `Citation` has no last-crawled
-     * field. A chip renders this verbatim when a payload carries it and renders
-     * nothing otherwise. Lane 0 must merge a CONTRACT-CHANGE to core before
-     * Lane G may emit it (see handoff).
-     */
-    last_crawled: z.string().nullable().optional(),
+    /** ADR 0007: real, optional provenance field — formatted for display or omitted. */
+    last_crawled: z.string().nullable().default(null),
   })
   .strict();
 export type Citation = z.infer<typeof CitationSchema>;
@@ -68,6 +65,8 @@ export const AnswerSchema = z
     abstained: z.boolean().default(false),
     confidence: z.number().default(0),
     language: LanguageSchema.default("en"),
+    next_step: z.string().nullable().default(null),
+    abstention_reason: z.string().nullable().default(null),
   })
   .strict();
 export type Answer = z.infer<typeof AnswerSchema>;
@@ -83,6 +82,16 @@ export const QuerySchema = z
   .strict();
 export type Query = z.infer<typeof QuerySchema>;
 
+/** ErrorBody is served on every non-2xx response, including 422 feedback. */
+export const ErrorBodySchema = z
+  .object({
+    code: z.string(),
+    message: z.string(),
+    details: z.record(z.string(), z.unknown()).default({}),
+  })
+  .strict();
+export type ErrorBody = z.infer<typeof ErrorBodySchema>;
+
 export const PastPaperQuestionSchema = z
   .object({
     question_id: z.string(),
@@ -95,17 +104,22 @@ export const PastPaperQuestionSchema = z
     subject: z.string().nullable().default(null),
     options: z.array(z.string()).default([]),
     image_ref: ImageRefSchema.nullable().default(null),
+    // ADR 0007 adds these to core; Lane G has not emitted a papers route yet.
+    course_code: z.string().nullable().default(null),
+    term: z.string().nullable().default(null),
+    exam_type: z.string().nullable().default(null),
+    department: z.string().nullable().default(null),
   })
   .strict();
 export type PastPaperQuestion = z.infer<typeof PastPaperQuestionSchema>;
 
-/** Lane G contract expectation: the finder response envelope. */
+/** Lane H assumption: no artifact route/schema for the finder yet (CONTRACT-CHANGE). */
 export const PaperSearchResultSchema = z
   .object({ results: z.array(PastPaperQuestionSchema) })
   .strict();
 export type PaperSearchResult = z.infer<typeof PaperSearchResultSchema>;
 
-/** Lane G contract expectation: feedback has no frozen core schema yet. */
+/** ADR 0009: strict feedback request and the 202 body that echoes it. */
 export const SentimentSchema = z.enum(["positive", "negative"]);
 export type Sentiment = z.infer<typeof SentimentSchema>;
 
@@ -119,27 +133,15 @@ export const FeedbackRequestSchema = z
   .strict();
 export type FeedbackRequest = z.infer<typeof FeedbackRequestSchema>;
 
-/** The SSE event contract consumed by the streaming client. */
-export const TokenEventSchema = z.strictObject({
-  type: z.literal("token"),
-  text: z.string(),
-});
-export const CitationEventSchema = z.strictObject({
-  type: z.literal("citation"),
-  citation: CitationSchema,
-});
-export const ImageEventSchema = z.strictObject({
-  type: z.literal("image"),
-  image: ImageRefSchema,
-});
-export const AnswerEventSchema = z.strictObject({
-  type: z.literal("answer"),
-  answer: AnswerSchema,
-});
-export const StreamErrorEventSchema = z.strictObject({
-  type: z.literal("error"),
-  code: z.string(),
-  message: z.string(),
-});
+export const FeedbackResponseSchema = FeedbackRequestSchema;
+export type FeedbackResponse = z.infer<typeof FeedbackResponseSchema>;
+
+/**
+ * API-local SSE envelopes from `uni_rag_api.schemas` (ADR 0009 keeps them out
+ * of core). The stream emits `token` frames and one final `citations` frame
+ * carrying the authoritative Answer. Every other event name is a typed error.
+ */
+export const TokenEventSchema = z.strictObject({ token: z.string() });
+export const CitationsEventSchema = z.strictObject({ answer: AnswerSchema });
 
 export { parseOrThrow };

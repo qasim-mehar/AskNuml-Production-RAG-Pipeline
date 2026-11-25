@@ -1,17 +1,14 @@
-import type { Citation } from "./schemas";
 import { describe, expect, it, vi } from "vitest";
 
+import contract from "./mocks/openapi-emitted.json";
 import {
   CITATION,
   ENGLISH_ANSWER,
   ERROR_BODY,
+  FEEDBACK_REQUEST,
   STREAM_EVENTS,
 } from "./mocks/fixtures";
-import {
-  lastMockCall,
-  setMockScenario,
-  STREAM_TICK_MS,
-} from "./mocks/handlers";
+import { lastMockCall, setMockScenario, STREAM_TICK_MS } from "./mocks/handlers";
 import { feedback, papers, query, stream } from "./client";
 import type { Query } from "./schemas";
 
@@ -23,29 +20,59 @@ const TEST_QUERY: Query = {
   filters: {},
 };
 
-describe("typed API client", () => {
-  it("validates a query response at the edge", async () => {
+function pathOf(url: string | undefined): string {
+  return new URL(url ?? "http://localhost/").pathname;
+}
+
+describe("live API client routes and edge validation", () => {
+  it("posts a Query to the artifact route and preserves real citation provenance", async () => {
     setMockScenario("english");
     const answer = await query(TEST_QUERY);
-    expect(answer.answer_id).toBe(ENGLISH_ANSWER.answer_id);
-    expect(lastMockCall()?.url).toContain("/api/query");
+
+    expect(pathOf(lastMockCall()?.url)).toBe(contract.routes.query);
+    expect(lastMockCall()?.method).toBe("POST");
     expect(lastMockCall()?.body).toMatchObject({ query_id: "q-test", language: "en" });
+    expect(answer.answer_id).toBe(ENGLISH_ANSWER.answer_id);
+    expect(answer.citations[0]?.last_crawled).toBe(CITATION.last_crawled);
+    expect(answer.images[0]?.image_url).toBeNull();
   });
 
-  it("posts feedback with the answer id and sentiment", async () => {
+  it("accepts feedback 202, echoes the payload and captures x-request-id", async () => {
     setMockScenario("english");
-    await feedback({ answer_id: "answer-en-1", sentiment: "negative", reason: "too vague" });
-    expect(lastMockCall()?.url).toContain("/api/feedback");
-    expect(lastMockCall()?.body).toEqual({
-      answer_id: "answer-en-1",
-      sentiment: "negative",
-      reason: "too vague",
+    const result = await feedback({ ...FEEDBACK_REQUEST });
+
+    expect(pathOf(lastMockCall()?.url)).toBe(contract.conventions.feedback);
+    expect(lastMockCall()?.method).toBe("POST");
+    expect(lastMockCall()?.body).toEqual(FEEDBACK_REQUEST);
+    expect(result).toMatchObject({
+      accepted: true,
+      requestId: "req-feedback-202",
+      response: FEEDBACK_REQUEST,
+    });
+  });
+
+  it("surfaces feedback 422 as a typed error with its own request id", async () => {
+    setMockScenario("feedback422");
+    await expect(feedback(FEEDBACK_REQUEST)).rejects.toMatchObject({
+      kind: "http",
+      status: 422,
+      code: "validation_error",
+      requestId: "req-feedback-422",
+    });
+  });
+
+  it("rejects a feedback response that is not the ADR 0009 202", async () => {
+    setMockScenario("feedback200");
+    await expect(feedback(FEEDBACK_REQUEST)).rejects.toMatchObject({
+      kind: "http",
+      code: "unexpected_feedback_status",
+      requestId: "req-feedback-200",
     });
   });
 
   it("encodes Urdu department names in the finder query", async () => {
     setMockScenario("papers");
-    await papers({
+    const result = await papers({
       courseCode: "CS",
       year: "2024",
       term: "fall",
@@ -53,6 +80,8 @@ describe("typed API client", () => {
       department: "کمپیوٹر سائنس",
     });
     const url = new URL(lastMockCall()?.url ?? "http://localhost/");
+
+    expect(pathOf(url.toString())).toBe(contract.conventions.papers);
     expect(Object.fromEntries(url.searchParams)).toEqual({
       course_code: "CS",
       year: "2024",
@@ -60,6 +89,7 @@ describe("typed API client", () => {
       exam_type: "final",
       department: "کمپیوٹر سائنس",
     });
+    expect(result.results[0]?.course_code).toBe("CS");
   });
 
   it("surfaces a typed HTTP error carrying the trace request id", async () => {
@@ -80,19 +110,12 @@ describe("typed API client", () => {
     });
   });
 
-  it("streams tokens incrementally and validates every event", async () => {
+  it("streams tokens incrementally and commits a real citations envelope with last_crawled", async () => {
     vi.useFakeTimers();
     setMockScenario("stream");
     const tokens: string[] = [];
-    const citations: Citation[] = [];
-    const images: string[] = [];
 
-    const settled = stream(TEST_QUERY, {
-      onToken: (token) => tokens.push(token),
-      onCitation: (citation) => citations.push(citation),
-      onImage: (image) => images.push(image.ref_id),
-    });
-
+    const settled = stream(TEST_QUERY, { onToken: (token) => tokens.push(token) });
     await vi.advanceTimersByTimeAsync(STREAM_TICK_MS);
     expect(tokens.join("")).not.toBe("");
     expect(tokens.join("")).not.toBe(ENGLISH_ANSWER.text);
@@ -100,24 +123,41 @@ describe("typed API client", () => {
     await vi.runAllTimersAsync();
     const answer = await settled;
 
+    expect(pathOf(lastMockCall()?.url)).toBe(contract.routes.stream);
     expect(tokens.join("")).toBe(ENGLISH_ANSWER.text);
-    expect(citations).toEqual([CITATION]);
-    expect(images).toEqual(["past-2024-cs-p2"]);
+    expect(STREAM_EVENTS.at(-1)?.event).toBe("citations");
     expect(answer.answer_id).toBe(ENGLISH_ANSWER.answer_id);
-    expect(answer.citations[0]?.source_url).toBe(CITATION.source_url);
-    expect(STREAM_EVENTS.length).toBeGreaterThan(tokens.length);
+    expect(answer.citations[0]?.last_crawled).toBe(CITATION.last_crawled);
+    expect(answer.images[0]?.ref_id).toBe(ENGLISH_ANSWER.images[0]?.ref_id);
   });
 
-  it("rejects a stream whose final answer fails schema validation", async () => {
+  it("rejects a final citations event whose Answer fails schema validation", async () => {
     setMockScenario("invalidStream");
     vi.useFakeTimers();
-    const settled = stream(TEST_QUERY, {
-      onToken: () => undefined,
-      onCitation: () => undefined,
-      onImage: () => undefined,
-    });
+    const settled = stream(TEST_QUERY, { onToken: () => undefined });
     const rejection = expect(settled).rejects.toMatchObject({ kind: "schema" });
     await vi.runAllTimersAsync();
     await rejection;
+  });
+
+  it("surfaces an unknown SSE event as a typed error instead of a partial render", async () => {
+    setMockScenario("unknownStream");
+    vi.useFakeTimers();
+    const settled = stream(TEST_QUERY, { onToken: () => undefined });
+    const rejection = expect(settled).rejects.toMatchObject({
+      kind: "stream",
+      code: "unknown_stream_event",
+    });
+    await vi.runAllTimersAsync();
+    await rejection;
+  });
+
+  it("surfaces a stream HTTP error envelope with its trace id", async () => {
+    setMockScenario("error");
+    await expect(stream(TEST_QUERY, { onToken: () => undefined })).rejects.toMatchObject({
+      kind: "http",
+      status: 503,
+      requestId: "req-error-stream-503",
+    });
   });
 });
