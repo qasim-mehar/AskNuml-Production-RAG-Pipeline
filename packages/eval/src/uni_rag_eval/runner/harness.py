@@ -34,7 +34,7 @@ from uni_rag_core import (
 )
 from uni_rag_core.schemas import Chunk
 from uni_rag_eval.domain import metrics as metric_fns
-from uni_rag_eval.domain.golden import GoldenSet
+from uni_rag_eval.domain.golden import REQUIRED_LANGUAGES, GoldenSet
 from uni_rag_eval.domain.judge import (
     FAITHFULNESS_SYSTEM_PROMPT,
     FaithfulnessJudge,
@@ -45,7 +45,7 @@ from uni_rag_eval.domain.judge import (
     parse_faithfulness_prompt,
     parse_verdict,
 )
-from uni_rag_eval.domain.variant import SearchMode, Variant
+from uni_rag_eval.domain.variant import INTEGRATED_CHUNKING, SearchMode, Variant
 
 _LOG = get_logger("uni_rag_eval.harness")
 _TOKEN = re.compile(r"\w+", flags=re.UNICODE)
@@ -74,6 +74,8 @@ class RunContext:
     top_k: int
     timestamp: str
     clock: str = "unspecified"
+    retry_rewrite: bool = False
+    corpus_strategy: str = INTEGRATED_CHUNKING
 
     def fingerprint(self) -> str:
         """Return a deterministic sha256 over the labels and their order."""
@@ -87,6 +89,8 @@ class RunContext:
             "top_k": self.top_k,
             "timestamp": self.timestamp,
             "clock": self.clock,
+            "retry_rewrite": self.retry_rewrite,
+            "corpus_strategy": self.corpus_strategy,
         }
         return hashlib.sha256(_canonical(payload).encode("utf-8")).hexdigest()
 
@@ -127,6 +131,7 @@ class QueryTrace:
     answer_text: str
     abstained: bool
     trace_id: str
+    confidence: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -248,6 +253,7 @@ def run_harness(
                     answer_text=answer.text,
                     abstained=answer.abstained,
                     trace_id=record_trace_id,
+                    confidence=answer.confidence,
                 )
             )
             _LOG.info(
@@ -464,3 +470,81 @@ def language_counts(golden_set: GoldenSet) -> Mapping[str, int]:
     for record in golden_set.records:
         counts[record.language.value] += 1
     return dict(counts)
+
+
+@dataclass(frozen=True)
+class WeakEvidenceSubset:
+    """Answerable rows whose single-pass leading score was below the threshold.
+
+    ``counts_by_language`` is always reported with the subset, so a verdict can
+    never rest on an unlabelled aggregate (L7).
+    """
+
+    record_ids: frozenset[str]
+    record_languages: Mapping[str, str]
+    counts_by_language: Mapping[str, int]
+    threshold: float
+
+
+def weak_evidence_subset(
+    golden_set: GoldenSet,
+    single_pass: RunResult,
+    threshold: float = DEFAULT_ABSTENTION_THRESHOLD,
+) -> WeakEvidenceSubset:
+    """Select the rows where retry_rewrite is eligible to fire.
+
+    A row is weak when it has answerable ground truth and the single-pass
+    pipeline's leading score is below ``threshold``. Abstention-only rows are
+    excluded: they have no expected evidence, so a recall gain there would be
+    unmeasurable rather than a node effect (L1).
+    """
+    answerable = {
+        record.id: record.language.value
+        for record in golden_set.records
+        if record.expected_chunk_ids
+    }
+    confidences = {trace.record_id: trace.confidence for trace in single_pass.traces}
+    ids = frozenset(
+        record_id for record_id in answerable if confidences.get(record_id, 0.0) < threshold
+    )
+    counts: dict[str, int] = defaultdict(int)
+    for record_id in ids:
+        counts[answerable[record_id]] += 1
+    return WeakEvidenceSubset(
+        record_ids=ids,
+        record_languages=answerable,
+        counts_by_language=dict(counts),
+        threshold=threshold,
+    )
+
+
+def subset_recall(subset: WeakEvidenceSubset, result: RunResult) -> dict[str, float]:
+    """Mean recall@k over the weak rows, per language and overall (L7)."""
+    recalls: dict[str, float] = {}
+    for language in (*[value.value for value in REQUIRED_LANGUAGES], "overall"):
+        ids = [
+            record_id
+            for record_id in subset.record_ids
+            if language == "overall" or subset.record_languages[record_id] == language
+        ]
+        recalls[language] = (
+            metric_fns.mean([result.per_record[record_id].recall_at_k for record_id in ids])
+            if ids
+            else 0.0
+        )
+    return recalls
+
+
+def recall_gain_on_subset(
+    subset: WeakEvidenceSubset,
+    single_pass: RunResult,
+    retry_on: RunResult,
+) -> dict[str, float]:
+    """Return recall@5 gain (on minus off) per language and overall for a subset.
+
+    Pure over the two runs and the subset; a language with no weak rows scores
+    ``0.0`` rather than being collapsed into the overall row (L1/L7).
+    """
+    off = subset_recall(subset, single_pass)
+    on = subset_recall(subset, retry_on)
+    return {language: on[language] - off[language] for language in off}

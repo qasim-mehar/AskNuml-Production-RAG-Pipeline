@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from enum import StrEnum
+from math import isfinite
 
 from pydantic import BaseModel, ConfigDict
 from pydantic import ValidationError as PydanticValidationError
@@ -11,14 +12,19 @@ from pydantic import ValidationError as PydanticValidationError
 from uni_rag_core.errors import ValidationError
 
 # Lane C's published chunking strategy names (ADR 0007 block vocabulary). They
-# replace the old awaiting-lane-c sentinel; the integrated composition labels a
-# run with both because the fixture corpus is chunked under both strategies.
+# replace the old awaiting-lane-c sentinel. The combined value below is the
+# integration configuration's label (not a blended corpus): integrated runs
+# index the registry chunk set as-is, and the per-strategy ablation indexes it
+# once under each name separately.
 FIXED_WINDOW = "fixed_window"
 SENTENCE_BOUNDARY = "sentence_boundary"
 CHUNKING_STRATEGIES: tuple[str, ...] = (FIXED_WINDOW, SENTENCE_BOUNDARY)
 # A single axis value keeps the ablation at 12 variants (3 search x 2 rerank x
 # 2 freshness) while naming both strategies, matching the integration config.
 INTEGRATED_CHUNKING = f"{FIXED_WINDOW}+{SENTENCE_BOUNDARY}"
+# The retry_rewrite flag axis. Off is the baseline (single pass); on is Lane
+# E's capped loop, measured in this milestone (L1/L16).
+RETRY_REWRITE_AXIS: tuple[bool, ...] = (False, True)
 
 
 class SearchMode(StrEnum):
@@ -30,7 +36,7 @@ class SearchMode(StrEnum):
 
 
 class Variant(BaseModel):
-    """One ablation configuration: search, rerank, freshness and chunking strategy."""
+    """One ablation configuration: search, rerank, freshness, corpus and flag."""
 
     model_config = ConfigDict(extra="forbid", frozen=True, use_enum_values=False)
 
@@ -39,6 +45,13 @@ class Variant(BaseModel):
     rerank: bool
     freshness_boost: bool
     chunking_strategy: str
+    # Lane E's node flag (off by default). A retry-on variant differs from its
+    # retry-off twin by this field alone; the name records the difference (L1).
+    retry_rewrite: bool = False
+    # Which strategy the fixture corpus was indexed under for this run. The
+    # integrated baseline keeps its combined label; per-strategy runs name one
+    # strategy and index the same fixture documents separately (L16).
+    corpus_strategy: str = INTEGRATED_CHUNKING
 
 
 class NodePurposeRow(BaseModel):
@@ -52,13 +65,46 @@ class NodePurposeRow(BaseModel):
     measured_effect: str
 
 
+class Verdict(StrEnum):
+    """L16 outcome for a measured graph node."""
+
+    KEEP = "KEEP"
+    REMOVE = "REMOVE"
+
+
+def retry_rewrite_verdict(gains_by_language: Mapping[str, float]) -> Verdict:
+    """Return KEEP only when the measured overall recall@5 gain is strictly positive.
+
+    L16 removes a node with no measured gain: zero and negative gains are
+    REMOVE. The function is pure and reads only the ``overall`` gain, so a
+    verdict can always be recomputed from the numbers printed in its own table.
+    """
+    overall = gains_by_language.get("overall")
+    if overall is None or not isfinite(overall):
+        raise ValidationError(
+            "retry_rewrite verdict needs a finite overall gain",
+            context={"gains": dict(gains_by_language)},
+        )
+    return Verdict.KEEP if overall > 0.0 else Verdict.REMOVE
+
+
 def make_variant_name(
-    search_mode: SearchMode, rerank: bool, freshness_boost: bool, chunking_strategy: str
+    search_mode: SearchMode,
+    rerank: bool,
+    freshness_boost: bool,
+    chunking_strategy: str,
+    retry_rewrite: bool = False,
 ) -> str:
-    """Return a stable, sortable name for a variant."""
+    """Return a stable, sortable name for a variant.
+
+    The retry suffix is appended only when the flag is on, so the twelve
+    baseline variant names stay byte-identical and the committed gate labels
+    do not drift (L1/L4).
+    """
     return (
         f"{search_mode.value}-rerank-{'on' if rerank else 'off'}"
         f"-freshness-{'on' if freshness_boost else 'off'}-{chunking_strategy}"
+        f"{'-retry-on' if retry_rewrite else ''}"
     )
 
 
@@ -67,31 +113,57 @@ def build_variant(
     rerank: bool,
     freshness_boost: bool,
     chunking_strategy: str = INTEGRATED_CHUNKING,
+    *,
+    retry_rewrite: bool = False,
+    corpus_strategy: str | None = None,
 ) -> Variant:
     """Construct a named variant from ablation axis values."""
+    indexed_under = corpus_strategy or chunking_strategy
     return Variant(
-        name=make_variant_name(search_mode, rerank, freshness_boost, chunking_strategy),
+        name=make_variant_name(
+            search_mode, rerank, freshness_boost, chunking_strategy, retry_rewrite
+        ),
         search_mode=search_mode,
         rerank=rerank,
         freshness_boost=freshness_boost,
         chunking_strategy=chunking_strategy,
+        retry_rewrite=retry_rewrite,
+        corpus_strategy=indexed_under,
     )
 
 
 def variant_matrix(
     chunking_strategies: Sequence[str] = (INTEGRATED_CHUNKING,),
+    *,
+    retry_rewrite_axis: Sequence[bool] = (False,),
 ) -> tuple[Variant, ...]:
-    """Cartesian product of the published ablation axes, ordered deterministically."""
+    """Cartesian product of the published ablation axes, ordered deterministically.
+
+    ``chunking_strategies`` is the per-strategy corpus dimension: each value is
+    indexed into its own corpus before querying. ``retry_rewrite_axis`` adds
+    Lane E's flag as an independent axis; the default keeps the 12-variant
+    baseline matrix unchanged (L1/L4).
+    """
     if not chunking_strategies:
         raise ValidationError("variant_matrix needs at least one chunking strategy")
+    if not retry_rewrite_axis:
+        raise ValidationError("variant_matrix needs at least one retry_rewrite value")
     if any("awaiting" in strategy for strategy in chunking_strategies):
         raise ValidationError(
             "The awaiting-lane-c sentinel has been retired (Lane C published names)"
         )
     try:
         return tuple(
-            build_variant(search_mode, rerank, freshness_boost, chunking_strategy)
+            build_variant(
+                search_mode,
+                rerank,
+                freshness_boost,
+                chunking_strategy,
+                retry_rewrite=retry_rewrite,
+                corpus_strategy=chunking_strategy,
+            )
             for chunking_strategy in sorted(chunking_strategies)
+            for retry_rewrite in sorted(set(retry_rewrite_axis))
             for search_mode in SearchMode
             for rerank in (False, True)
             for freshness_boost in (False, True)

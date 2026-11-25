@@ -1,7 +1,8 @@
 # Ablation summary
 
 - variants: `12`
-- backend: `fetcher=fake|parser=docling|chunking=strategies|vector=qdrant_local|objects=fake|metadata=none|clock=fake|embedder=google_genai|reranker=fake|llm=google_genai|live=False|parser_engine=fixture-reader|adapters=real-offline|ADR0010-strip`
+- backend: `fetcher=fake|parser=docling|chunking=strategies|vector=qdrant_local|objects=fake|metadata=none|clock=fake|embedder=google_genai|reranker=fake|llm=google_genai|live=False|parser_engine=fixture-reader|adapters=real-offline|ADR0010-strip|strip_source=in-memory`
+- ADR-0010 strip: `labelled in-memory boundary strip (D2 not merged)`
 - corpus: `fixture-corpus-v1-integrated`
 - golden set: `curated-30-v1`
 - clock: `FakeClock(2026-01-01T00:00:00+00:00)`
@@ -71,7 +72,7 @@ One row per graph node purpose. Populate from Lane E's handoff; do not invent ef
 | rerank | Reorder candidates through the injected Reranker port. | nDCG@10 and MRR delta against the rerank-off ablation. | Measured rerank-on minus rerank-off (hybrid) ndcg: en -0.1695, ur +0.0000, roman_urdu +0.0000, overall -0.0565. No measured gain on this corpus. |
 | abstain | Emit an explicit, citation-free abstention with a next step when evidence is weak. | Abstention precision on the weak-evidence fixture; zero fabricated facts. | Measured abstention precision 0.1000 overall; the three fee rows abstain with no cited facts. |
 | answer | Synthesize a cited answer whose data block is delimited and labelled. | Faithfulness and citation-resolution rate on mini-golden.json. | Measured faithfulness 0.6667 and citation-resolution 1.0000 overall (hybrid, rerank on), read natively from Citation.last_crawled. |
-| retry_rewrite | Rewrite a weakly retrieved query once and repeat the search (capped loop). | recall@k gain on weak-evidence rows vs the single-pass baseline. | awaiting measurement |
+| retry_rewrite | Rewrite a weakly retrieved query once and repeat the search (capped loop). | recall@k gain on weak-evidence rows vs the single-pass baseline. | Measured recall@5 gain on weak-evidence rows (n=18; en 5, roman_urdu 4, ur 9): en +0.0000, ur +0.0000, roman_urdu +0.0000, overall +0.0000; L16 verdict REMOVE. |
 | clarify | Ask the student for a missing required filter instead of guessing. | Clarification precision after filter-extraction errors; no needless clarifications. | awaiting measurement |
 | multihop | Answer a question that must reference evidence from a second document. | Faithfulness on a two-document multi-hop fixture. | awaiting measurement |
 | checkpoint_followup | Carry prior turns and citations into a checkpointed follow-up. | Citation continuity and faithfulness on a follow-up fixture. | awaiting measurement |
@@ -80,14 +81,15 @@ One row per graph node purpose. Populate from Lane E's handoff; do not invent ef
 
 # Ablation: hybrid-rerank-on-freshness-off-fixed_window+sentence_boundary
 
-- backend: `fetcher=fake|parser=docling|chunking=strategies|vector=qdrant_local|objects=fake|metadata=none|clock=fake|embedder=google_genai|reranker=fake|llm=google_genai|live=False|parser_engine=fixture-reader|adapters=real-offline|ADR0010-strip`
+- backend: `fetcher=fake|parser=docling|chunking=strategies|vector=qdrant_local|objects=fake|metadata=none|clock=fake|embedder=google_genai|reranker=fake|llm=google_genai|live=False|parser_engine=fixture-reader|adapters=real-offline|ADR0010-strip|strip_source=in-memory`
+- ADR-0010 strip: `labelled in-memory boundary strip (D2 not merged)`
 - corpus: `fixture-corpus-v1-integrated`
 - golden set: `curated-30-v1`
 - variant: `hybrid-rerank-on-freshness-off-fixed_window+sentence_boundary` (chunking: `fixed_window+sentence_boundary`)
 - clock: `FakeClock(2026-01-01T00:00:00+00:00)`
 - top_k (k): `5`
 - timestamp: `2026-01-01T00:00:00+00:00`
-- config fingerprint: `c58684862c2a469b08ada830fff3fcbb13e9879105445449cdf79ca441db4f5c`
+- config fingerprint: `ee224f70ada963444e2e61abc9abb019bd9bac5835c908b758d33c690c47dbbc`
 - scoring: retrieval metrics pool answerable ground truth; faithfulness and citation-resolution pool answered records; abstention precision pools all records.
 - first integrated-pipeline run; adapters are real but offline, no live provider or network call; a zero row is a measured result (L1).
 
