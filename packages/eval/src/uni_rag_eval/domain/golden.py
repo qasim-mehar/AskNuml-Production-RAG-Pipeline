@@ -57,6 +57,10 @@ class FixtureChunk(BaseModel):
     chunk_id: str
     heading_path: list[str] = Field(default_factory=list)
     text: str
+    # Real content hash from the integrated corpus (ADR 0007, L6). When present
+    # it is validated against the chunk text, so a golden reference can never
+    # silently point at a different chunk than the one the pipeline indexed.
+    content_hash: str | None = None
     page: int | None = None
     language: Language = Language.EN
 
@@ -192,13 +196,19 @@ def chunks_from_registry(registry: FixtureRegistry) -> list[Chunk]:
                 context={"doc_id": doc.doc_id, "last_crawled": doc.last_crawled},
             )
         for chunk in doc.chunks:
+            computed_hash = sha256(chunk.text.encode("utf-8")).hexdigest()
+            if chunk.content_hash is not None and chunk.content_hash != computed_hash:
+                raise EvaluationValidationError(
+                    "Fixture chunk content hash disagrees with its text",
+                    context={"chunk_id": chunk.chunk_id, "declared": chunk.content_hash},
+                )
             chunks.append(
                 Chunk(
                     chunk_id=chunk.chunk_id,
                     doc_id=doc.doc_id,
                     source_url=doc.source_url,
                     heading_path=list(chunk.heading_path),
-                    content_hash=sha256(chunk.text.encode("utf-8")).hexdigest(),
+                    content_hash=computed_hash,
                     last_crawled=crawled,
                     doc_type=doc.doc_type,
                     version=doc.version,

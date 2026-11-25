@@ -8,6 +8,7 @@ its committed threshold and its labels match the baseline's labels.
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -26,6 +27,7 @@ _METRIC_FIELDS: tuple[str, ...] = (
     "mrr",
     "ndcg",
     "faithfulness",
+    "citation_resolution",
     "abstention_precision",
 )
 
@@ -203,14 +205,49 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--registry", type=Path, default=Path("eval/golden/fixture-registry.json"))
     parser.add_argument("--baseline", type=Path, default=Path("eval/golden/baseline.json"))
     parser.add_argument("--top-k", type=int, default=5)
+    parser.add_argument(
+        "--pipeline-factory",
+        default=None,
+        help="module:attr callable handed in by the integration configuration; "
+        "returns a Query->Answer callable for one Variant (L3).",
+    )
+    parser.add_argument("--backend", default=None, help="label of the injected backend")
+    parser.add_argument("--corpus", default=None, help="label of the injected corpus")
+    parser.add_argument("--clock", default=None, help="label of the injected clock")
     args = parser.parse_args(argv)
 
     from uni_rag_eval.domain.variant import DEFAULT_VARIANT
     from uni_rag_eval.service.run import load_eval_inputs, run_variant
 
     golden, registry = load_eval_inputs(args.golden, args.registry)
-    result = run_variant(golden, registry, DEFAULT_VARIANT, top_k=args.top_k)
     baseline = load_baseline(args.baseline)
+
+    factory = None
+    if args.pipeline_factory:
+        module_name, separator, attr = args.pipeline_factory.partition(":")
+        if not separator or not module_name or not attr:
+            _LOG.error("eval.gate.config", reason="--pipeline-factory must be module:attr")
+            return 2
+        factory = getattr(importlib.import_module(module_name), attr)
+    elif baseline.backend != "fake":
+        _LOG.error(
+            "eval.gate.config",
+            reason="committed baseline is for a different backend; the local fake run "
+            "cannot be gated against it. Pass --pipeline-factory with --backend/--corpus/--clock.",
+            baseline_backend=baseline.backend,
+        )
+        return 2
+
+    result = run_variant(
+        golden,
+        registry,
+        DEFAULT_VARIANT,
+        top_k=args.top_k,
+        backend=args.backend or ("configured" if factory else "fake"),
+        corpus=args.corpus,
+        clock_label=args.clock,
+        retrieval=factory(DEFAULT_VARIANT) if factory else None,
+    )
     try:
         report = assert_no_regression(result, baseline)
     except RegressionError as exc:

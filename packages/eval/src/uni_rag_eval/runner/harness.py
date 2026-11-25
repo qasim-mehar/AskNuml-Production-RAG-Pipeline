@@ -73,6 +73,7 @@ class RunContext:
     golden_id: str
     top_k: int
     timestamp: str
+    clock: str = "unspecified"
 
     def fingerprint(self) -> str:
         """Return a deterministic sha256 over the labels and their order."""
@@ -85,6 +86,7 @@ class RunContext:
             "golden_id": self.golden_id,
             "top_k": self.top_k,
             "timestamp": self.timestamp,
+            "clock": self.clock,
         }
         return hashlib.sha256(_canonical(payload).encode("utf-8")).hexdigest()
 
@@ -107,6 +109,7 @@ class MetricScores:
     mrr: float
     ndcg: float
     faithfulness: float
+    citation_resolution: float
     abstention_precision: float
     n_records: int
     n_answerable: int
@@ -152,12 +155,14 @@ def _score_pool(
     faiths: Sequence[float],
     decisions: Sequence[tuple[bool, bool]],
     n_records: int,
+    resolutions: Sequence[float] = (),
 ) -> MetricScores:
     return MetricScores(
         recall_at_k=metric_fns.mean(recalls),
         mrr=metric_fns.mean(ranks),
         ndcg=metric_fns.mean(ndcgs),
         faithfulness=metric_fns.mean(faiths),
+        citation_resolution=metric_fns.mean(resolutions),
         abstention_precision=metric_fns.abstention_precision(decisions),
         n_records=n_records,
         n_answerable=len(recalls),
@@ -171,12 +176,21 @@ def run_harness(
     retrieval: RetrievalCallable,
     judge: FaithfulnessJudge,
     context: RunContext,
+    known_chunks: Mapping[str, Chunk] | None = None,
 ) -> RunResult:
-    """Score every golden record, stratify by language, and log each trace."""
+    """Score every golden record, stratify by language, and log each trace.
+
+    ``retrieval`` is the injected ``Query -> Answer`` boundary (L3); the
+    integrated composition is handed to us by configuration, never imported
+    from a retrieval lane. ``known_chunks`` is the corpus used for native
+    citation-resolution checks via ``Citation.last_crawled`` (ADR 0007).
+    """
+    corpus = known_chunks or {}
     recalls: dict[str, list[float]] = defaultdict(list)
     ranks: dict[str, list[float]] = defaultdict(list)
     ndcgs: dict[str, list[float]] = defaultdict(list)
     faiths: dict[str, list[float]] = defaultdict(list)
+    resolutions: dict[str, list[float]] = defaultdict(list)
     decisions: dict[str, list[tuple[bool, bool]]] = defaultdict(list)
     counts: dict[str, int] = defaultdict(int)
     per_record: dict[str, PerRecordScores] = {}
@@ -216,6 +230,15 @@ def run_harness(
                 ndcgs[language].append(record_scores.ndcg)
             if expected and not answer.abstained:
                 faiths[language].append(record_scores.faithfulness)
+                resolutions[language].append(
+                    metric_fns.citation_resolution(
+                        [
+                            (citation.chunk_id, citation.last_crawled)
+                            for citation in answer.citations
+                        ],
+                        corpus,
+                    )
+                )
             decisions[language].append((answer.abstained, record.expected_abstain))
             traces.append(
                 QueryTrace(
@@ -243,6 +266,7 @@ def run_harness(
             faiths[language],
             decisions[language],
             counts[language],
+            resolutions[language],
         )
         for language in sorted(counts)
     }
@@ -253,6 +277,7 @@ def run_harness(
         [value for values in faiths.values() for value in values],
         [value for values in decisions.values() for value in values],
         sum(counts.values()),
+        [value for values in resolutions.values() for value in values],
     )
     with trace(context.fingerprint()[:32]):
         _LOG.info(
@@ -383,6 +408,7 @@ class FakePipeline:
                     source_url=chunk.source_url,
                     snippet=chunk.text[:200],
                     page=chunk.page,
+                    last_crawled=chunk.last_crawled,
                     score=round(scored[chunk.chunk_id], 6),
                 )
                 for chunk in top

@@ -11,33 +11,49 @@
       "chunks": [
         {
           "chunk_id": "doc-cs101-outline::c00",
-          "heading_path": ["CS-101: Introduction to Computer Science"],
+          "heading_path": [
+            "CS-101: Introduction to Computer Science"
+          ],
           "text": "This course introduces programming, algorithms, and computing fundamentals.",
-          "language": "en"
+          "language": "en",
+          "content_hash": "d32a7bb98d6861bc01499f356091297e18af9b58b79fa3f161df53278337e42c"
         },
         {
           "chunk_id": "doc-cs101-outline::c01",
-          "heading_path": ["Course Information"],
+          "heading_path": [
+            "Course Information"
+          ],
           "text": "Instructor: Dr. Ayesha Khan. Credits: 4. Semester: Fall 2026.",
-          "language": "en"
+          "language": "en",
+          "content_hash": "c49b4bbba10fbe30b52502742eac3647043a0ecb601a3c71e96ca2dfac42ea7e"
         },
         {
           "chunk_id": "doc-cs101-outline::c02",
-          "heading_path": ["Learning Outcomes"],
+          "heading_path": [
+            "Learning Outcomes"
+          ],
           "text": "Write and debug programs in Python. Analyze the complexity of simple algorithms.",
-          "language": "en"
+          "language": "en",
+          "content_hash": "92906da262862aa4b6149f523ba5c0edcb71e996679393a3c5a3996831f77a96"
         },
         {
           "chunk_id": "doc-cs101-outline::c03",
-          "heading_path": ["Assessment"],
+          "heading_path": [
+            "Assessment"
+          ],
           "text": "Grades are based on assignments, a midterm exam, and a final project.",
-          "language": "en"
+          "language": "en",
+          "content_hash": "9aba1895fcf81afd727ff8954b48aa72c126f0c6ea727459e9ef3005ddc66491"
         },
         {
           "chunk_id": "doc-cs101-outline::c04",
-          "heading_path": ["Assessment", "Weekly schedule"],
+          "heading_path": [
+            "Assessment",
+            "Weekly schedule"
+          ],
           "text": "View the weekly schedule: /courses/cs-101/schedule.",
-          "language": "en"
+          "language": "en",
+          "content_hash": "a904ccf675896092ccc0ec29c819b10184c4f7c529d93ed1236b2eddaecfc885"
         }
       ]
     },
@@ -51,27 +67,41 @@
       "chunks": [
         {
           "chunk_id": "doc-faculty-directory::c00",
-          "heading_path": ["Faculty Directory"],
+          "heading_path": [
+            "Faculty Directory"
+          ],
           "text": "The department welcomes inquiries from prospective students and researchers.",
-          "language": "en"
+          "language": "en",
+          "content_hash": "349a50449fe9ce35152a7e9b884a8a9a48b29d12eee88491e6a140a79321c978"
         },
         {
           "chunk_id": "doc-faculty-directory::c01",
-          "heading_path": ["Professors", "Dr. Ayesha Khan"],
+          "heading_path": [
+            "Professors",
+            "Dr. Ayesha Khan"
+          ],
           "text": "Professor of Computer Science. Research interests: information retrieval and NLP. Read the full profile: /faculty/akhan.",
-          "language": "en"
+          "language": "en",
+          "content_hash": "4e5d9650643809237d4f806dea2b06877ae3d4813800773d3600f1303bc70a72"
         },
         {
           "chunk_id": "doc-faculty-directory::c02",
-          "heading_path": ["Professors", "Dr. Muhammad Ali"],
+          "heading_path": [
+            "Professors",
+            "Dr. Muhammad Ali"
+          ],
           "text": "Associate Professor. Research interests: distributed systems and databases. Read the full profile: /faculty/mali.",
-          "language": "en"
+          "language": "en",
+          "content_hash": "7f2c04bf77093075f834634d3f74c0ea1daa192eeca2d37b01a697b36b5e22e8"
         },
         {
           "chunk_id": "doc-faculty-directory::c03",
-          "heading_path": ["Contact"],
+          "heading_path": [
+            "Contact"
+          ],
           "text": "Email: cs@example.edu.pk. Phone: +92-42-1234-5678. Contact the department: /department/contact.",
-          "language": "en"
+          "language": "en",
+          "content_hash": "514635c4ba311b45c2a5ae92974e0bde637a8a7b492220d687b815903a421645"
         }
       ]
     },
@@ -85,27 +115,42 @@
       "chunks": [
         {
           "chunk_id": "doc-announcements-2026::c00",
-          "heading_path": ["Announcements"],
+          "heading_path": [
+            "Announcements"
+          ],
           "text": "Important updates for the Fall 2026 semester.",
-          "language": "en"
+          "language": "en",
+          "content_hash": "a62613bc0e378f1bb7894b5d4c28a92ca8325f5ea141354e75827ea31e9cfc02"
         },
         {
           "chunk_id": "doc-announcements-2026::c01",
-          "heading_path": ["September 2026", "Midterm schedule released"],
+          "heading_path": [
+            "September 2026",
+            "Midterm schedule released"
+          ],
           "text": "The midterm exam for CS-101 will be held on October 17, 2026. Read the full notice: /announcements/midterm-2026.",
-          "language": "en"
+          "language": "en",
+          "content_hash": "af6bef5fe43b17d876ca28f83e028edf83f3b2a6fddca00c3fa8e6434596c8cc"
         },
         {
           "chunk_id": "doc-announcements-2026::c02",
-          "heading_path": ["September 2026", "Library hours extended"],
+          "heading_path": [
+            "September 2026",
+            "Library hours extended"
+          ],
           "text": "The main library will remain open until midnight during exam week.",
-          "language": "en"
+          "language": "en",
+          "content_hash": "ff9c9018f02b4bc927dac085fd284573c6a3ff6ca66d8284ee67ff6a72cafed7"
         },
         {
           "chunk_id": "doc-announcements-2026::c03",
-          "heading_path": ["August 2026", "New student orientation"],
+          "heading_path": [
+            "August 2026",
+            "New student orientation"
+          ],
           "text": "Orientation for incoming students begins on August 24, 2026. See event details: /events/orientation.",
-          "language": "en"
+          "language": "en",
+          "content_hash": "42e074412c0778fe1954cd95071d70061b8f600e1067603bb6a8b2272e67d369"
         }
       ]
     },
@@ -119,10 +164,13 @@
       "chunks": [
         {
           "chunk_id": "doc-cs101-outline-pdf::c00",
-          "heading_path": ["CS-101 Course Outline"],
+          "heading_path": [
+            "CS-101 Course Outline"
+          ],
           "text": "CS-101 Course Outline",
           "page": 1,
-          "language": "en"
+          "language": "en",
+          "content_hash": "c3101ddf94528c276cffb9a553e71ca73c04db82cee3f138b4a9090150a0836e"
         }
       ]
     },
@@ -136,10 +184,13 @@
       "chunks": [
         {
           "chunk_id": "doc-past-paper-page::c00",
-          "heading_path": ["Past paper page"],
+          "heading_path": [
+            "Past paper page"
+          ],
           "text": "Scanned past-paper page image (fixture placeholder).",
           "page": 1,
-          "language": "en"
+          "language": "en",
+          "content_hash": "ff501fca7fad63ab1dbcf7f58694d562e0fc52c881046bbb81a91ad7bbf83e14"
         }
       ]
     }

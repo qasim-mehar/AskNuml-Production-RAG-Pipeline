@@ -18,6 +18,7 @@ _METRIC_COLUMNS: tuple[tuple[str, str], ...] = (
     ("mrr", "mrr"),
     ("ndcg", "ndcg"),
     ("faithfulness", "faithfulness"),
+    ("citation_resolution", "citation_resolution"),
     ("abstention_precision", "abstention_precision"),
 )
 _LANGUAGE_ORDER: tuple[str, ...] = (
@@ -50,13 +51,19 @@ def _metadata_lines(result: RunResult) -> list[str]:
         f"- corpus: `{context.corpus}`",
         f"- golden set: `{context.golden_id}`",
         f"- variant: `{context.variant_name}` (chunking: `{context.chunking_strategy}`)",
-        f"- top_k: `{context.top_k}`",
+        f"- clock: `{context.clock}`",
+        f"- top_k (k): `{context.top_k}`",
         f"- timestamp: `{context.timestamp}`",
         f"- config fingerprint: `{context.fingerprint()}`",
-        "- scoring: retrieval metrics pool answerable ground truth; faithfulness pools "
-        "answered records; abstention precision pools all records.",
-        "- mechanics validation on a fake backend only; a zero row is a measured fake "
-        "result, not a quality verdict.",
+        "- scoring: retrieval metrics pool answerable ground truth; faithfulness and "
+        "citation-resolution pool answered records; abstention precision pools all records.",
+        (
+            "- mechanics validation on a fake backend only; a zero row is a measured fake "
+            "result, not a quality verdict."
+            if context.backend == "fake"
+            else "- first integrated-pipeline run; adapters are real but offline, no live "
+            "provider or network call; a zero row is a measured result (L1)."
+        ),
     ]
 
 
@@ -193,8 +200,14 @@ def summary_markdown(results: Sequence[RunResult], node_rows: Sequence[NodePurpo
         f"- backend: `{first.backend if first else 'unknown'}`",
         f"- corpus: `{first.corpus if first else 'unknown'}`",
         f"- golden set: `{first.golden_id if first else 'unknown'}`",
-        f"- top_k: `{first.top_k if first else 'unknown'}`",
-        "- all numbers are mechanics validation on the fake backend, not a quality claim.",
+        f"- clock: `{first.clock if first else 'unknown'}`",
+        f"- top_k (k): `{first.top_k if first else 'unknown'}`",
+        (
+            "- all numbers are mechanics validation on the fake backend, not a quality claim."
+            if first and first.backend == "fake"
+            else "- all numbers are from the labelled integrated backend; offline adapters, "
+            "no live provider. Earlier fake-backend mechanics numbers stay separate."
+        ),
         "",
         _markdown_table(summary_rows(results)),
         "",

@@ -7,16 +7,19 @@ from typing import Any
 import pytest
 from eval_helpers import StubRetriever, load_fixture
 
+from uni_rag_core.schemas import Chunk
 from uni_rag_eval.domain.golden import load_golden_set
 from uni_rag_eval.domain.judge import FaithfulnessJudge, Judgment
 from uni_rag_eval.domain.metrics import (
     abstention_precision,
+    citation_resolution,
     faithfulness,
     mean_reciprocal_rank,
     ndcg_at_k,
     recall_at_k,
     reciprocal_rank,
 )
+from uni_rag_eval.domain.variant import INTEGRATED_CHUNKING
 from uni_rag_eval.runner.harness import (
     FakeFaithfulnessLLM,
     LLMJudge,
@@ -93,7 +96,7 @@ def _context(top_k: int) -> RunContext:
         backend="stub",
         corpus="synthetic-corpus-v1",
         variant_name="stub",
-        chunking_strategy="awaiting-lane-c",
+        chunking_strategy=INTEGRATED_CHUNKING,
         golden_id="synthetic-oracle-v1",
         top_k=top_k,
         timestamp="2026-01-01T00:00:00+00:00",
@@ -130,3 +133,31 @@ def test_recall_at_one_is_exactly_one_for_one_query_and_zero_for_another() -> No
     result = _run(1)
     assert result.per_record["s1"].recall_at_k == 0.0
     assert result.per_record["s3"].recall_at_k == 1.0
+
+
+def test_citation_resolution_reads_native_last_crawled_not_a_text_footer() -> None:
+    from datetime import UTC, datetime
+
+    from uni_rag_core.schemas import DocType
+
+    crawled = datetime(2026, 1, 1, tzinfo=UTC)
+    stale = datetime(2025, 1, 1, tzinfo=UTC)
+    chunk = Chunk(
+        chunk_id="c1",
+        doc_id="d1",
+        source_url="https://example.invalid/d1",
+        heading_path=["H"],
+        content_hash="hash",
+        last_crawled=crawled,
+        doc_type=DocType.WEB_PAGE,
+        version="v1",
+        text="body",
+    )
+    corpus = {"c1": chunk}
+    # Same id + exact ADR-0007 provenance resolves; mismatched date and unknown
+    # id do not; a text footer is irrelevant because no footer is parsed.
+    assert citation_resolution([("c1", crawled)], corpus) == 1.0
+    assert citation_resolution([("c1", stale)], corpus) == 0.0
+    assert citation_resolution([("missing", crawled)], corpus) == 0.0
+    assert citation_resolution([("c1", crawled), ("c1", stale)], corpus) == 0.5
+    assert citation_resolution([], corpus) == 0.0

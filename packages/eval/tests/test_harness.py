@@ -17,7 +17,7 @@ from uni_rag_eval.domain.golden import (
     load_fixture_registry,
     load_golden_set,
 )
-from uni_rag_eval.domain.variant import DEFAULT_VARIANT
+from uni_rag_eval.domain.variant import DEFAULT_VARIANT, INTEGRATED_CHUNKING
 from uni_rag_eval.runner.ablation import variant_table_markdown
 from uni_rag_eval.runner.harness import (
     RetrievalCallable,
@@ -37,7 +37,7 @@ def _stub_context() -> RunContext:
         backend="stub",
         corpus="synthetic-corpus-v1",
         variant_name="stub",
-        chunking_strategy="awaiting-lane-c",
+        chunking_strategy=INTEGRATED_CHUNKING,
         golden_id="synthetic-oracle-v1",
         top_k=3,
         timestamp="2026-01-01T00:00:00+00:00",
