@@ -11,6 +11,8 @@ from uni_rag_indexing.domain.filters import build_payload, ensure_aware
 from uni_rag_indexing.domain.store_types import (
     ChunkRecord,
     CrawlState,
+    PaperRecordFilters,
+    ParsedPaperRecord,
     StorageConflictError,
 )
 
@@ -22,6 +24,7 @@ class InMemoryMetadataStore:
         self._documents: dict[str, Document] = {}
         self._chunks: dict[tuple[str, str], ChunkRecord] = {}
         self._crawl: dict[str, CrawlState] = {}
+        self._paper_records: dict[str, tuple[ParsedPaperRecord, int]] = {}
 
     def upsert_document(self, document: Document, *, indexed_at: datetime) -> None:
         """Store a document, ignoring a byte-identical replay."""
@@ -98,6 +101,40 @@ class InMemoryMetadataStore:
     def get_crawl_state(self, doc_id: str) -> CrawlState | None:
         """Return a stored crawl outcome or None."""
         return self._crawl.get(doc_id)
+
+    def upsert_paper_record(
+        self, record: ParsedPaperRecord, *, ordinal: int, indexed_at: datetime
+    ) -> None:
+        """Freeze a parsed record; a replay with different provenance conflicts."""
+        ensure_aware(indexed_at, field="indexed_at")
+        frozen = replace(
+            record, last_crawled=ensure_aware(record.last_crawled, field="last_crawled")
+        )
+        existing = self._paper_records.get(frozen.question_id)
+        if existing is not None:
+            if existing[0] != frozen:
+                raise StorageConflictError(
+                    "question_id already stored with a different parsed record",
+                    context={"question_id": frozen.question_id},
+                )
+            return  # an identical replay keeps the original ordinal (L4)
+        self._paper_records[frozen.question_id] = (frozen, ordinal)
+
+    def find_paper_records(self, filters: PaperRecordFilters) -> Sequence[ParsedPaperRecord]:
+        """Return matching parsed records in stable ordinal order, then paginate."""
+        matched = [
+            record
+            for record, _ in self._paper_records.values()
+            if (filters.course_code is None or record.course_code == filters.course_code)
+            and (filters.year is None or record.year == filters.year)
+            and (filters.term is None or record.term == filters.term)
+            and (filters.exam_type is None or record.exam_type == filters.exam_type)
+            and (filters.department is None or record.department == filters.department)
+        ]
+        matched.sort(
+            key=lambda record: (self._paper_records[record.question_id][1], record.question_id)
+        )
+        return tuple(matched[filters.offset : filters.offset + filters.limit])
 
     def history_count(self) -> int:
         """Return the number of retained versions (fake-specific helper)."""

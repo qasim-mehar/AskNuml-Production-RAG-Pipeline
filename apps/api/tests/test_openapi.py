@@ -82,14 +82,15 @@ def test_openapi_documents_sse_envelopes_in_the_stream_description(client: TestC
         assert fragment in description
 
 
-def test_openapi_documents_papers_route_with_fixture_backed_label(client: TestClient) -> None:
+def test_openapi_documents_papers_route_with_persisted_store_label(client: TestClient) -> None:
     """Lane H gets the real papers path plus an honest data-source label."""
     schema = client.get("/openapi.json").json()
     operation = schema["paths"]["/api/v1/papers"]["get"]
 
     assert "AND" in operation["description"]
-    assert "fixture-backed" in operation["description"]
-    assert "Lane 0 promotion ADR" in operation["description"]
+    assert "parsed-record store" in operation["description"]
+    assert "ADR 0011" in operation["description"]
+    assert "fixture-backed" not in operation["description"]
     assert set(operation["parameters"][i]["name"] for i in range(5)) == {
         "course_code",
         "year",

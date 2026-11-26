@@ -2,9 +2,9 @@
 
 Run with ``uv run python apps/api/scripts/benchmark.py --requests 200 --backend fake``
 (or ``--backend real`` for the pipeline composed with deterministic fakes).
-Records are labelled with the backend and load; the papers route stays
-fixture-backed on both backends until parsed-record persistence is promoted.
-These are in-process numbers, not production capacity estimates.
+Records are labelled with the backend and load; the papers route reads the
+parsed-record store on both backends (ADR 0011), with fake mode seeded from
+fixture-derived records. These are in-process numbers, not production capacity.
 """
 
 import argparse
@@ -102,8 +102,8 @@ def main() -> None:
             "transport": "in-process TestClient",
         },
         papers_data={
-            "source": "fake",
-            "label": "fixture-backed route; parsed-record persistence parked",
+            "source": "parsed-record store",
+            "label": "ADR 0011 stored records; fixture-derived seed in fake mode",
         },
         latency_ms={
             "/api/v1/query": _summary(query_latencies),

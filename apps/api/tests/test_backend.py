@@ -11,7 +11,8 @@ from helpers import expected_body, make_query
 from uni_rag_api.app import create_app
 from uni_rag_api.composition import Backend, PipelinePorts, resolve_backend
 from uni_rag_api.fixtures import LAST_CRAWLED
-from uni_rag_core import Answer, ApiSection, ProvidersSection, Settings
+from uni_rag_core import Answer, ApiSection, FakeObjectStore, ProvidersSection, Settings
+from uni_rag_indexing.adapters.postgres_metadata_store import PostgresMetadataStore
 
 
 def test_fake_backend_is_the_ci_default(settings: Settings) -> None:
@@ -45,6 +46,21 @@ def test_real_composition_with_injected_fakes_wires_the_pipeline(
     answer = Answer.model_validate(response.json())
     assert answer.query_id == "query-en-001"
     assert answer.language.value == "en"
+
+
+def test_live_flag_selects_the_persisted_postgres_papers_store(
+    settings: Settings, pipeline_ports: PipelinePorts
+) -> None:
+    """ADR 0011: live mode reads Lane D's Postgres store, never a seeded fake (L3)."""
+    live_settings = settings.model_copy(update={"providers": ProvidersSection(live_enabled=True)})
+    app = create_app(
+        live_settings,
+        backend=Backend.REAL,
+        pipeline_ports=pipeline_ports,
+        object_store=FakeObjectStore(),
+    )
+
+    assert isinstance(app.state.paper_record_store, PostgresMetadataStore)
 
 
 def test_real_backend_answer_carries_provenance_fields_byte_for_byte(

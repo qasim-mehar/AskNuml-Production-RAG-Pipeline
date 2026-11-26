@@ -16,10 +16,12 @@ model or network call is made by this app's tests.
 | GET | `/api/images/{ref_id}` | Stream stored page-image bytes from the ObjectStore port |
 | GET | `/api/v1/papers` | Find `PastPaperQuestion` records by course/year/term/exam type/department (AND) |
 
-The papers route is **real but fixture-backed** on both backends: a deterministic
-`FakePapersProvider` supplies records with frozen provenance. Parsed-record
-persistence is parked pending a Lane 0 promotion ADR — no real paper store is
-consulted, and the OpenAPI description says so (L1, L5).
+The papers route reads the **parsed-record store** on both backends (ADR 0011):
+`StoredPapersProvider` maps the five AND-combined filters onto Lane D's
+domain-local `MetadataStore` and rebuilds each `PaperRecord` from the provenance
+frozen at write time. Fake mode seeds an in-memory store from fixture-derived
+parsed records; live mode reads the persisted Postgres table. Live crawling and
+parsing stay parked — no fixture lookup or crawl happens at request time (L1, L5).
 
 Every response carries `x-request-id` and `X-Trace-Id`; logs are structured JSON
 with the same id. An optional `X-API-Key` stub and an in-memory token bucket are
@@ -40,7 +42,7 @@ injected — the API never imports a provider SDK (L3).
 - `uv run python apps/api/scripts/generate_openapi.py` — regenerate the artifact.
 - `uv run python apps/api/scripts/benchmark.py --requests 200 --backend fake|real`
   — in-process, single-connection latency for query and papers, labelled by
-  backend and by the papers route's fake data source (L1); not production capacity.
+  backend and by the papers route's parsed-record store (L1); not production capacity.
 
 Owned by the **API lane**; depends on `uni-rag-core`, Lane E's public service and
 Lane D's storage adapters behind ports — never on another app.

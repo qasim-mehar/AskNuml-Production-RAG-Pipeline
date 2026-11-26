@@ -16,7 +16,7 @@ from uni_rag_api.composition import (
 from uni_rag_api.errors import register_error_handlers
 from uni_rag_api.middleware.rate_limit import RateLimitMiddleware
 from uni_rag_api.middleware.trace import TraceMiddleware
-from uni_rag_api.ports import AnswerService, HealthProbe, PapersProvider
+from uni_rag_api.ports import AnswerService, HealthProbe, PaperRecordStore, PapersProvider
 from uni_rag_api.routers import feedback, health, images, papers, query
 from uni_rag_api.service import FakeHealthProbe, ObjectStoreImageService, as_typed_store
 from uni_rag_core import Clock, FakeClock, ObjectStore, Settings
@@ -34,11 +34,13 @@ def create_app(
     pipeline_ports: PipelinePorts | None = None,
     object_store: ObjectStore | None = None,
     papers_provider: PapersProvider | None = None,
+    paper_record_store: PaperRecordStore | None = None,
 ) -> FastAPI:
     """Build the API with folded core settings and injected ports (fakes by default).
 
-    ``backend`` overrides the settings-derived flag; ``pipeline_ports`` and
-    ``object_store`` let tests compose the real path deterministically with fakes.
+    ``backend`` overrides the settings-derived flag; ``pipeline_ports``,
+    ``object_store`` and ``paper_record_store`` let tests compose the real path
+    deterministically with fakes (ADR 0011).
     """
     resolved_settings = settings if settings is not None else ephemeral_settings()
     resolved_clock = clock if clock is not None else FakeClock()
@@ -51,6 +53,7 @@ def create_app(
         object_store=object_store,
         answer_service=answer_service,
         papers_provider=papers_provider,
+        paper_record_store=paper_record_store,
     )
 
     app = FastAPI(title="uni-rag API", version=resolved_settings.api.api_version)
@@ -61,6 +64,7 @@ def create_app(
     app.state.object_store = bundle.object_store
     app.state.image_service = ObjectStoreImageService(as_typed_store(bundle.object_store))
     app.state.papers_provider = bundle.papers_provider
+    app.state.paper_record_store = bundle.paper_record_store
     app.state.health_probe = health_probe if health_probe is not None else FakeHealthProbe()
 
     register_error_handlers(app)

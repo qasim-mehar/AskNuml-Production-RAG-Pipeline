@@ -1,8 +1,9 @@
-"""SQLAlchemy metadata store for documents, chunk versions and crawl state (L8/L10).
+"""SQLAlchemy metadata store for documents, chunk versions, crawl state and parsed records (L8/L10).
 
 All connections come from the typed settings module; the engine is injected in
 tests. Writes are idempotent by (chunk_id, version) and staleness is expressed
-with ``deleted_at`` rather than row deletion.
+with ``deleted_at`` rather than row deletion. Parsed paper records are frozen
+at write time (ADR 0011); they are never rebuilt from a crawl response on read.
 """
 
 from __future__ import annotations
@@ -21,16 +22,24 @@ from uni_rag_core import (
     DocType,
     Document,
     FakeClock,
+    ImageRef,
     Language,
     Settings,
     StorageError,
     get_logger,
 )
-from uni_rag_indexing.adapters.postgres_tables import chunks, crawl_state, documents
+from uni_rag_indexing.adapters.postgres_tables import (
+    chunks,
+    crawl_state,
+    documents,
+    parsed_paper_records,
+)
 from uni_rag_indexing.domain.filters import build_payload, ensure_aware
 from uni_rag_indexing.domain.store_types import (
     ChunkRecord,
     CrawlState,
+    PaperRecordFilters,
+    ParsedPaperRecord,
     StorageConflictError,
     StorageConnectionError,
 )
@@ -268,6 +277,82 @@ class PostgresMetadataStore:
             updated_at=_aware(row.updated_at),
         )
 
+    # -- parsed paper records (ADR 0011) ----------------------------------------
+    def upsert_paper_record(
+        self, record: ParsedPaperRecord, *, ordinal: int, indexed_at: datetime
+    ) -> None:
+        """Persist a parsed record; a replay with different provenance conflicts."""
+        crawled = ensure_aware(record.last_crawled, field="last_crawled")
+        stamped = ensure_aware(indexed_at, field="indexed_at")
+        record_values = {
+            "doc_id": record.doc_id,
+            "source_url": record.source_url,
+            "page": record.page,
+            "question_number": record.question_number,
+            "text": record.text,
+            "last_crawled": crawled,
+            "year": record.year,
+            "subject": record.subject,
+            "options_json": list(record.options),
+            "image_ref_json": (
+                None if record.image_ref is None else record.image_ref.model_dump(mode="json")
+            ),
+            "course_code": record.course_code,
+            "term": record.term,
+            "exam_type": record.exam_type,
+            "department": record.department,
+        }
+        values = {**record_values, "ordinal": ordinal, "indexed_at": stamped}
+        try:
+            with self._engine.begin() as connection:
+                row = connection.execute(
+                    select(parsed_paper_records).where(
+                        parsed_paper_records.c.question_id == record.question_id
+                    )
+                ).first()
+                if row is None:
+                    connection.execute(
+                        parsed_paper_records.insert().values(
+                            question_id=record.question_id, **values
+                        )
+                    )
+                elif _paper_record_values(row) != record_values:
+                    raise StorageConflictError(
+                        "question_id already stored with a different parsed record",
+                        context={"question_id": record.question_id},
+                    )
+        except StorageConflictError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - classified, re-raised typed
+            self._raise_typed(exc, "upsert_paper_record")
+        _logger.info(
+            "postgres_paper_record_upsert", question_id=record.question_id, host=self._host
+        )
+
+    def find_paper_records(self, filters: PaperRecordFilters) -> Sequence[ParsedPaperRecord]:
+        """Return matching parsed records in stable ordinal order, then paginate."""
+        query = select(parsed_paper_records)
+        for column, value in (
+            (parsed_paper_records.c.course_code, filters.course_code),
+            (parsed_paper_records.c.year, filters.year),
+            (parsed_paper_records.c.term, filters.term),
+            (parsed_paper_records.c.exam_type, filters.exam_type),
+            (parsed_paper_records.c.department, filters.department),
+        ):
+            if value is not None:
+                query = query.where(column == value)
+        query = (
+            query.order_by(parsed_paper_records.c.ordinal, parsed_paper_records.c.question_id)
+            .limit(filters.limit)
+            .offset(filters.offset)
+        )
+        try:
+            with self._engine.connect() as connection:
+                rows = connection.execute(query).all()
+        except Exception as exc:  # noqa: BLE001 - classified, re-raised typed
+            self._raise_typed(exc, "find_paper_records")
+        return tuple(_to_paper_record(row) for row in rows)
+
     # -- internals --------------------------------------------------------------
     def _raise_typed(self, exc: Exception, operation: str) -> NoReturn:
         text = f"{type(exc).__name__}: {exc}".lower()
@@ -291,6 +376,11 @@ def _aware(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
+def _utc_aware(value: datetime) -> datetime:
+    """Convert a DB timestamp to UTC so JSON round-trips byte-faithfully (L5)."""
+    return _aware(value).astimezone(UTC)
+
+
 def _to_record(row: Any) -> ChunkRecord:
     return ChunkRecord(
         chunk_id=row.chunk_id,
@@ -301,6 +391,51 @@ def _to_record(row: Any) -> ChunkRecord:
         indexed_at=_aware(row.indexed_at),
         deleted_at=None if row.deleted_at is None else _aware(row.deleted_at),
         superseded_by=row.superseded_by,
+    )
+
+
+def _paper_record_values(row: Any) -> dict[str, Any]:
+    """Return the persisted columns of a parsed record in upsert-comparable form."""
+    # ``ordinal`` and ``indexed_at`` are write-time bookkeeping, not part of the
+    # frozen record: replaying the same record must remain a no-op (L4).
+    return {
+        "doc_id": row.doc_id,
+        "source_url": row.source_url,
+        "page": row.page,
+        "question_number": row.question_number,
+        "text": row.text,
+        "last_crawled": _utc_aware(row.last_crawled),
+        "year": row.year,
+        "subject": row.subject,
+        "options_json": list(row.options_json or ()),
+        "image_ref_json": row.image_ref_json,
+        "course_code": row.course_code,
+        "term": row.term,
+        "exam_type": row.exam_type,
+        "department": row.department,
+    }
+
+
+def _to_paper_record(row: Any) -> ParsedPaperRecord:
+    """Rebuild a parsed record from its frozen columns, never from a fetch."""
+    return ParsedPaperRecord(
+        question_id=row.question_id,
+        doc_id=row.doc_id,
+        source_url=row.source_url,
+        page=row.page,
+        question_number=row.question_number,
+        text=row.text,
+        last_crawled=_utc_aware(row.last_crawled),
+        year=row.year,
+        subject=row.subject,
+        options=tuple(row.options_json or ()),
+        image_ref=(
+            None if row.image_ref_json is None else ImageRef.model_validate(row.image_ref_json)
+        ),
+        course_code=row.course_code,
+        term=row.term,
+        exam_type=row.exam_type,
+        department=row.department,
     )
 
 

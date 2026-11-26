@@ -1,5 +1,6 @@
 """Past-paper finder filters, provenance and honest empty state (L4, L5, L7, L8)."""
 
+from collections.abc import Sequence
 from typing import Any
 
 import pytest
@@ -8,8 +9,16 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from uni_rag_api.app import create_app
-from uni_rag_api.composition import ephemeral_settings
+from uni_rag_api.composition import Backend, PipelinePorts, ephemeral_settings
 from uni_rag_api.fixtures import IMAGE_BYTES, LAST_CRAWLED, PAPER_RECORDS
+from uni_rag_api.service import StoredPapersProvider, seed_paper_records
+from uni_rag_core import Settings
+from uni_rag_indexing.domain.metadata_memory import InMemoryMetadataStore
+from uni_rag_indexing.domain.store_types import (
+    PaperRecordFilters,
+    ParsedPaperRecord,
+    StorageConnectionError,
+)
 
 EN_ID = "question-paper-2024-1"
 UR_ID = "question-paper-2024-2"
@@ -26,7 +35,7 @@ def _ids(client: TestClient, params: dict[str, Any] | None = None) -> list[str]:
 
 
 def test_unfiltered_finder_returns_every_fixture_record_in_order(client: TestClient) -> None:
-    """No filters means no constraints; fixture order is deterministic (L4)."""
+    """No filters means no constraints; stored ordinal order is deterministic (L4)."""
     assert _ids(client) == ALL_IDS
 
 
@@ -107,7 +116,7 @@ def test_urdu_filter_values_round_trip_byte_faithfully(client: TestClient) -> No
 
 
 def test_every_record_carries_fixture_provenance_verbatim(client: TestClient) -> None:
-    """source_url, last_crawled, page and image refs come from fixtures only (L5)."""
+    """Provenance comes from the stored record, never reconstructed on read (L5)."""
     results = client.get("/api/v1/papers").json()["results"]
 
     assert results == [record.model_dump(mode="json") for record in PAPER_RECORDS]
@@ -204,3 +213,50 @@ def test_finder_uses_the_injected_provider_port(clock: SteppableClock) -> None:
         results = client.get("/api/v1/papers").json()["results"]
 
     assert [item["question_id"] for item in results] == [EN_ID]
+
+
+@pytest.mark.parametrize("backend", list(Backend))
+def test_both_backends_wire_the_store_backed_papers_provider(
+    settings: Settings, clock: SteppableClock, pipeline_ports: PipelinePorts, backend: Backend
+) -> None:
+    """No backend consults module fixtures directly; both read the store (ADR 0011)."""
+    app = create_app(settings, clock=clock, backend=backend, pipeline_ports=pipeline_ports)
+
+    assert isinstance(app.state.papers_provider, StoredPapersProvider)
+    with TestClient(app) as client:
+        assert _ids(client) == ALL_IDS
+
+
+def test_finder_reads_the_injected_store_without_a_fixture_fallback(
+    clock: SteppableClock,
+) -> None:
+    """A store holding one record yields exactly one result, not the fixture corpus."""
+    store = InMemoryMetadataStore()
+    seed_paper_records(store, PAPER_RECORDS[2:3], indexed_at=LAST_CRAWLED)
+    app = create_app(ephemeral_settings(), clock=clock, paper_record_store=store)
+
+    with TestClient(app) as client:
+        results = client.get("/api/v1/papers").json()["results"]
+
+    assert [item["question_id"] for item in results] == [SPRING_ID]
+
+
+def test_store_failure_is_a_typed_503_with_the_same_trace_behaviour(
+    clock: SteppableClock,
+) -> None:
+    """Upstream storage faults keep the typed envelope and x-request-id (L10, L11)."""
+
+    class FailingStore(InMemoryMetadataStore):
+        def find_paper_records(self, filters: PaperRecordFilters) -> Sequence[ParsedPaperRecord]:
+            """Simulate a broken Postgres connection."""
+            raise StorageConnectionError(
+                "connection refused", context={"host": "postgres.example.edu"}
+            )
+
+    app = create_app(ephemeral_settings(), clock=clock, paper_record_store=FailingStore())
+    with TestClient(app) as client:
+        response = client.get("/api/v1/papers", headers={"X-Trace-Id": "papers-503"})
+
+    assert response.status_code == 503
+    assert response.json()["code"] == "upstream_unavailable"
+    assert response.headers["x-request-id"] == "papers-503"

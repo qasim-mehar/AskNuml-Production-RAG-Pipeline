@@ -2,7 +2,9 @@
 
 Lane E arrives only through :class:`uni_rag_retrieval.service.RetrievalPipeline`
 and core ports (L2, L14). Provider SDKs are never imported here; live adapters
-are constructed lazily inside the branches that opt in (L3, ADR 0008).
+are constructed lazily inside the branches that opt in (L3, ADR 0008). The
+papers finder always reads Lane D's parsed-record store through the API-local
+``PapersProvider`` port; only the store's backing differs by backend (ADR 0011).
 """
 
 from __future__ import annotations
@@ -12,9 +14,9 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from uni_rag_api.fixtures import IMAGE_BYTES, IMAGE_CONTENT_TYPES
-from uni_rag_api.ports import AnswerService, PapersProvider
-from uni_rag_api.service import FakeAnswerService, FakePapersProvider
+from uni_rag_api.fixtures import IMAGE_BYTES, IMAGE_CONTENT_TYPES, LAST_CRAWLED, PAPER_RECORDS
+from uni_rag_api.ports import AnswerService, PaperRecordStore, PapersProvider
+from uni_rag_api.service import FakeAnswerService, StoredPapersProvider, seed_paper_records
 from uni_rag_core import (
     LLM,
     ApiSection,
@@ -33,6 +35,7 @@ from uni_rag_core import (
     get_logger,
 )
 from uni_rag_core.schemas import Chunk, DocType
+from uni_rag_indexing.domain.metadata_memory import InMemoryMetadataStore
 from uni_rag_retrieval.service import RetrievalPipeline
 
 if TYPE_CHECKING:
@@ -93,6 +96,7 @@ class BackendBundle:
     answer_service: AnswerService
     object_store: ObjectStore
     papers_provider: PapersProvider
+    paper_record_store: PaperRecordStore
 
 
 class PipelineAnswerService:
@@ -115,6 +119,17 @@ def seeded_fake_object_store() -> FakeObjectStore:
     store = FakeObjectStore()
     for key, data in IMAGE_BYTES.items():
         store.put(key, data, content_type=IMAGE_CONTENT_TYPES[key])
+    return store
+
+
+def seeded_paper_record_store() -> PaperRecordStore:
+    """Seed an in-memory parsed-record store from fixture-derived records (L4, ADR 0011).
+
+    Deterministic fake mode only. The live backend reads the persisted Postgres
+    table instead and is never seeded from fixtures here.
+    """
+    store = InMemoryMetadataStore()
+    seed_paper_records(store, PAPER_RECORDS, indexed_at=LAST_CRAWLED)
     return store
 
 
@@ -199,11 +214,14 @@ def build_backend(
     object_store: ObjectStore | None = None,
     answer_service: AnswerService | None = None,
     papers_provider: PapersProvider | None = None,
+    paper_record_store: PaperRecordStore | None = None,
 ) -> BackendBundle:
     """Resolve the flag and wire answer/image services with fakes as the default.
 
-    The papers finder is real but fixture-backed on both backends: parsed-record
-    persistence is parked pending a Lane 0 promotion ADR (L1, L5).
+    The papers finder is store-backed on both backends (ADR 0011): fake mode
+    seeds an in-memory parsed-record store from fixtures, while live mode reads
+    Lane D's Postgres table. Injecting a store or a provider keeps tests
+    deterministic without changing the route contract (L1, L3, L4).
     """
     resolved = resolve_backend(settings, backend)
     live = resolved is Backend.REAL and settings.providers.live_enabled
@@ -218,19 +236,30 @@ def build_backend(
             _real_pipeline(settings, clock=clock, ports=ports or PipelinePorts(), live=live)
         )
 
-    resolved_papers = papers_provider if papers_provider is not None else FakePapersProvider()
+    papers_store = paper_record_store
+    if papers_store is None:
+        if live:
+            from uni_rag_indexing.adapters.postgres_metadata_store import PostgresMetadataStore
+
+            papers_store = PostgresMetadataStore.from_settings(settings, clock=clock)
+        else:
+            papers_store = seeded_paper_record_store()
+    resolved_papers = (
+        papers_provider if papers_provider is not None else StoredPapersProvider(papers_store)
+    )
     _log.info(
         "backend.selected",
         backend=resolved.value,
         live_providers=live,
-        papers_provider="fake",
-        papers_note="fixture-backed until parsed-record persistence is promoted",
+        papers_provider=type(resolved_papers).__name__,
+        papers_store=type(papers_store).__name__,
     )
     return BackendBundle(
         backend=resolved,
         answer_service=service,
         object_store=store,
         papers_provider=resolved_papers,
+        paper_record_store=papers_store,
     )
 
 
@@ -241,6 +270,7 @@ __all__ = [
     "PipelinePorts",
     "PapersProvider",
     "build_backend",
+    "seeded_paper_record_store",
     "ephemeral_settings",
     "resolve_backend",
     "seeded_fake_object_store",
