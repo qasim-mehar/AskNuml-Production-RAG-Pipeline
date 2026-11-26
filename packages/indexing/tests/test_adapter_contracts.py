@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import socket
+import sys
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+from urllib.parse import urlsplit
 
 import pytest
 from qdrant_client import QdrantClient
@@ -29,10 +32,14 @@ from uni_rag_indexing.domain.payload_index import PayloadVectorIndex
 VECTOR = [1.0] + [0.0] * 15
 
 
-def _qdrant_reachable() -> bool:
+def _qdrant_reachable(url: str) -> bool:
+    """Probe the configured Qdrant endpoint, never a hard-coded localhost port."""
+    parsed = urlsplit(url)
+    host = parsed.hostname or url
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.settimeout(0.4)
-        return sock.connect_ex(("localhost", 6333)) == 0
+        return sock.connect_ex((host, port)) == 0
 
 
 def test_qdrant_adapter_passes_vector_store_contract(qdrant_contract: QdrantVectorStore) -> None:
@@ -117,12 +124,12 @@ def test_qdrant_sparse_hits_are_domain_clean(
 @pytest.mark.integration
 def test_qdrant_live_adapter_passes_vector_payload_roundtrip_contract() -> None:
     """ADR 0010 also holds against compose Qdrant when the service is reachable."""
-    if not _qdrant_reachable():
-        pytest.skip("qdrant compose service unreachable on :6333")
     try:
         settings = load_settings()
     except ConfigError as exc:
         pytest.skip(f"settings unavailable: {exc}")
+    if not _qdrant_reachable(settings.qdrant_url):
+        pytest.skip(f"qdrant endpoint unreachable at {settings.qdrant_url}")
     client = QdrantClient(url=settings.qdrant_url, timeout=10)
     collections = ("contract_roundtrip_dense", "contract_roundtrip_sparse")
     store = QdrantVectorStore(
@@ -138,6 +145,50 @@ def test_qdrant_live_adapter_passes_vector_payload_roundtrip_contract() -> None:
         for collection in collections:
             if client.collection_exists(collection):
                 client.delete_collection(collection)
+
+
+def test_live_probe_follows_settings_qdrant_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The live round-trip guard probes the configured URL, not :6333."""
+    configured = "http://qdrant.lane-d.edu:6334"
+    module = sys.modules[__name__]
+    real_probe = _qdrant_reachable
+    socket_module = module.socket
+    probed: list[str] = []
+    monkeypatch.setattr(module, "load_settings", lambda: SimpleNamespace(qdrant_url=configured))
+    monkeypatch.setattr(module, "_qdrant_reachable", lambda url: probed.append(url) or False)
+    with pytest.raises(pytest.skip.Exception):
+        test_qdrant_live_adapter_passes_vector_payload_roundtrip_contract()
+    assert probed == [configured]
+
+    targets: list[tuple[str, int]] = []
+
+    class FakeSocket:
+        """Socket double that records the probe target and reports it unreachable."""
+
+        def __enter__(self) -> FakeSocket:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def settimeout(self, timeout: float) -> None:
+            return None
+
+        def connect_ex(self, target: tuple[str, int]) -> int:
+            targets.append(target)
+            return 1
+
+    monkeypatch.setattr(
+        module,
+        "socket",
+        SimpleNamespace(
+            AF_INET=socket_module.AF_INET,
+            SOCK_STREAM=socket_module.SOCK_STREAM,
+            socket=lambda *a, **k: FakeSocket(),
+        ),
+    )
+    assert real_probe(configured) is False
+    assert targets == [("qdrant.lane-d.edu", 6334)]
 
 
 def test_payload_index_passes_vector_store_contract(payload_index: PayloadVectorIndex) -> None:
