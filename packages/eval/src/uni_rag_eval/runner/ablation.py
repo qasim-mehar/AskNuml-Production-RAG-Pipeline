@@ -13,10 +13,14 @@ from uni_rag_core import ValidationError
 from uni_rag_eval.domain.feedback import FEEDBACK_BACKEND_MARKER
 from uni_rag_eval.domain.golden import REQUIRED_LANGUAGES
 from uni_rag_eval.domain.variant import CHUNKING_STRATEGIES, NodePurposeRow
-from uni_rag_eval.runner.harness import MetricScores, RunResult
+from uni_rag_eval.runner.harness import INCLUDE_FEEDBACK_SUBSET_RULE, MetricScores, RunResult
 
 if TYPE_CHECKING:
-    from uni_rag_eval.service.run import RetryRewriteComparison, StrategyComparison
+    from uni_rag_eval.service.run import (
+        NodeComparison,
+        RetryRewriteComparison,
+        StrategyComparison,
+    )
 
 _METRIC_COLUMNS: tuple[tuple[str, str], ...] = (
     ("recall_at_k", "recall@{k}"),
@@ -335,6 +339,75 @@ def write_retry_comparison(comparison: RetryRewriteComparison, report_dir: Path)
         report_dir / "retry-rewrite-comparison.csv", _csv_table(retry_comparison_rows(comparison))
     )
     return [*paths, markdown, csv_path]
+
+
+def node_comparison_rows(comparison: NodeComparison) -> list[tuple[str, ...]]:
+    """Weak-row recall@5 on/off and the gain, per language and overall (L7)."""
+    header = ("language", "n_weak", "recall@5_off", "recall@5_on", "gain")
+    rows: list[tuple[str, ...]] = [header]
+    for language in _LANGUAGE_ORDER:
+        count = (
+            len(comparison.subset.record_ids)
+            if language == "overall"
+            else comparison.subset.counts_by_language.get(language, 0)
+        )
+        rows.append(
+            (
+                language,
+                str(count),
+                _fmt(comparison.recall_off[language]),
+                _fmt(comparison.recall_on[language]),
+                f"{comparison.gains[language]:+.6f}",
+            )
+        )
+    return rows
+
+
+def node_comparison_markdown(comparison: NodeComparison) -> str:
+    """Render a node verdict with its full label chain and parked reversal (L1/L16)."""
+    composition = ", ".join(
+        f"{language} {count}"
+        for language, count in sorted(comparison.subset.counts_by_language.items())
+    )
+    rule_note = (
+        "(the six feedback-derived rows are included from the labelled offline "
+        "fixture transcript, NOT live user feedback — ADR 0009)."
+        if comparison.subset.subset_rule == INCLUDE_FEEDBACK_SUBSET_RULE
+        else "(feedback-derived rows are excluded under this declared rule)."
+    )
+    header = [
+        f"# {comparison.node.value}: single pass vs node-on",
+        "",
+        *_comparison_labels([comparison.single_pass]),
+        f"- corpus: `{comparison.single_pass.context.corpus}`",
+        f"- single-pass variant: `{comparison.single_pass.context.variant_name}`",
+        f"- node-on variant: `{comparison.node_on.context.variant_name}`",
+        f"- weak-evidence definition: answerable row with single-pass confidence "
+        f"< {comparison.subset.threshold}; composition: {composition or 'none'} (L7)",
+        f"- weak-evidence subset rule: `{comparison.subset.subset_rule}` {rule_note}",
+        f"- L16 verdict: `{comparison.verdict.value}` (zero or negative overall gain removes)",
+        "- scope: labelled offline backend only; the node-prompt transport echoes its "
+        "prompt, so no missing filter, second-document query or carried citation is "
+        "produced. No backend label claims live transport (L1/L17).",
+        f"- reversal/keep condition (recorded, not acted on): {comparison.reversal_condition}",
+        "",
+        _markdown_table(node_comparison_rows(comparison)),
+        "",
+    ]
+    return "\n".join(header)
+
+
+def write_node_comparison(comparison: NodeComparison, report_dir: Path) -> list[Path]:
+    """Write the labelled markdown + csv pair for one measured node."""
+    report_dir.mkdir(parents=True, exist_ok=True)
+    stem = comparison.node.value
+    markdown = _write_text(
+        report_dir / f"{stem}-comparison.md", node_comparison_markdown(comparison)
+    )
+    csv_path = _write_text(
+        report_dir / f"{stem}-comparison.csv", _csv_table(node_comparison_rows(comparison))
+    )
+    return [markdown, csv_path]
 
 
 def strategy_comparison_rows(comparison: StrategyComparison) -> list[tuple[str, ...]]:

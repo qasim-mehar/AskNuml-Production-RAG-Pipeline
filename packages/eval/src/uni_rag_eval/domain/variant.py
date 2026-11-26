@@ -35,6 +35,25 @@ class SearchMode(StrEnum):
     HYBRID = "hybrid"
 
 
+class NodeVariant(StrEnum):
+    """The measured control-flow node axis (single pass is the baseline)."""
+
+    SINGLE_PASS = "single-pass"
+    CLARIFY = "clarify"
+    MULTIHOP = "multihop"
+    CHECKPOINT_FOLLOWUP = "checkpoint_followup"
+
+
+# The three remaining control-flow nodes from Lane E's registry. They are not
+# implemented in the shipped pipeline: this axis exists only so Lane F can run
+# a node-on measurement against the single-pass baseline (L1/L16).
+NODE_VARIANTS: tuple[NodeVariant, ...] = (
+    NodeVariant.CLARIFY,
+    NodeVariant.MULTIHOP,
+    NodeVariant.CHECKPOINT_FOLLOWUP,
+)
+
+
 class Variant(BaseModel):
     """One ablation configuration: search, rerank, freshness, corpus and flag."""
 
@@ -52,6 +71,9 @@ class Variant(BaseModel):
     # integrated baseline keeps its combined label; per-strategy runs name one
     # strategy and index the same fixture documents separately (L16).
     corpus_strategy: str = INTEGRATED_CHUNKING
+    # Measurement-only node axis. The shipped pipeline never reads it; only the
+    # run-only composition uses it to wrap a callable for an L16 eval run (L1/L16).
+    node_variant: NodeVariant = NodeVariant.SINGLE_PASS
 
 
 class NodePurposeRow(BaseModel):
@@ -72,7 +94,7 @@ class Verdict(StrEnum):
     REMOVE = "REMOVE"
 
 
-def retry_rewrite_verdict(gains_by_language: Mapping[str, float]) -> Verdict:
+def l16_verdict(gains_by_language: Mapping[str, float]) -> Verdict:
     """Return KEEP only when the measured overall recall@5 gain is strictly positive.
 
     L16 removes a node with no measured gain: zero and negative gains are
@@ -82,10 +104,15 @@ def retry_rewrite_verdict(gains_by_language: Mapping[str, float]) -> Verdict:
     overall = gains_by_language.get("overall")
     if overall is None or not isfinite(overall):
         raise ValidationError(
-            "retry_rewrite verdict needs a finite overall gain",
+            "L16 verdict needs a finite overall gain",
             context={"gains": dict(gains_by_language)},
         )
     return Verdict.KEEP if overall > 0.0 else Verdict.REMOVE
+
+
+def retry_rewrite_verdict(gains_by_language: Mapping[str, float]) -> Verdict:
+    """F3's verdict entry point; it obeys the same pure L16 rule as every node."""
+    return l16_verdict(gains_by_language)
 
 
 def make_variant_name(
@@ -94,17 +121,19 @@ def make_variant_name(
     freshness_boost: bool,
     chunking_strategy: str,
     retry_rewrite: bool = False,
+    node_variant: NodeVariant = NodeVariant.SINGLE_PASS,
 ) -> str:
     """Return a stable, sortable name for a variant.
 
-    The retry suffix is appended only when the flag is on, so the twelve
-    baseline variant names stay byte-identical and the committed gate labels
-    do not drift (L1/L4).
+    Suffixes are appended only on the measured axes, so the twelve baseline
+    variant names stay byte-identical and the committed gate labels do not
+    drift (L1/L4).
     """
     return (
         f"{search_mode.value}-rerank-{'on' if rerank else 'off'}"
         f"-freshness-{'on' if freshness_boost else 'off'}-{chunking_strategy}"
         f"{'-retry-on' if retry_rewrite else ''}"
+        f"{f'-node={node_variant.value}-on' if node_variant is not NodeVariant.SINGLE_PASS else ''}"
     )
 
 
@@ -116,12 +145,13 @@ def build_variant(
     *,
     retry_rewrite: bool = False,
     corpus_strategy: str | None = None,
+    node_variant: NodeVariant = NodeVariant.SINGLE_PASS,
 ) -> Variant:
     """Construct a named variant from ablation axis values."""
     indexed_under = corpus_strategy or chunking_strategy
     return Variant(
         name=make_variant_name(
-            search_mode, rerank, freshness_boost, chunking_strategy, retry_rewrite
+            search_mode, rerank, freshness_boost, chunking_strategy, retry_rewrite, node_variant
         ),
         search_mode=search_mode,
         rerank=rerank,
@@ -129,6 +159,7 @@ def build_variant(
         chunking_strategy=chunking_strategy,
         retry_rewrite=retry_rewrite,
         corpus_strategy=indexed_under,
+        node_variant=node_variant,
     )
 
 
