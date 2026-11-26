@@ -70,4 +70,39 @@ crawl_state = Table(
     Column("updated_at", DateTime(timezone=True), nullable=False),
 )
 
-__all__ = ["chunks", "crawl_state", "documents", "metadata"]
+# ADR 0011: parsed PaperRecords, not raw crawl responses and not Chunks. Every
+# provenance field is a column frozen at write time; only the ImageRef key is
+# kept for the ObjectStore. Qdrant stays vector-only (ADR 0010).
+parsed_paper_records = Table(
+    "parsed_paper_records",
+    metadata,
+    Column("question_id", String(255), primary_key=True),
+    Column("doc_id", String(255), nullable=False),
+    Column("source_url", Text, nullable=False),
+    Column("page", Integer, nullable=False),
+    Column("question_number", Integer, nullable=False),
+    Column("text", Text, nullable=False),
+    Column("last_crawled", DateTime(timezone=True), nullable=False),
+    Column("year", Integer, nullable=True),
+    Column("subject", Text, nullable=True),
+    Column("options_json", JSON, nullable=False),
+    Column("image_ref_json", JSON, nullable=True),
+    Column("course_code", String(64), nullable=True),
+    Column("term", String(32), nullable=True),
+    Column("exam_type", String(32), nullable=True),
+    Column("department", Text, nullable=True),
+    Column("ordinal", Integer, nullable=False),
+    Column("indexed_at", DateTime(timezone=True), nullable=False),
+    Index("ix_parsed_papers_ordinal", "ordinal"),
+    Index("ix_parsed_papers_doc_id", "doc_id"),
+    Index(
+        "ix_parsed_papers_filters",
+        "course_code",
+        "year",
+        "term",
+        "exam_type",
+        "department",
+    ),
+)
+
+__all__ = ["chunks", "crawl_state", "documents", "metadata", "parsed_paper_records"]

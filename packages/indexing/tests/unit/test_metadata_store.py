@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -11,13 +12,22 @@ from alembic.config import Config
 from sqlalchemy import Engine, inspect
 from sqlalchemy.exc import OperationalError
 
-from tests.factories import chunk, document
+from tests.factories import FIXED_TIME, chunk, document, question
 from uni_rag_core import Chunk, FakeClock
 from uni_rag_indexing.adapters.postgres_metadata_store import PostgresMetadataStore
-from uni_rag_indexing.adapters.postgres_tables import chunks, crawl_state, documents, metadata
+from uni_rag_indexing.adapters.postgres_tables import (
+    chunks,
+    crawl_state,
+    documents,
+    metadata,
+    parsed_paper_records,
+)
+from uni_rag_indexing.domain.metadata_memory import InMemoryMetadataStore
 from uni_rag_indexing.domain.store_types import (
     ChunkRecord,
     CrawlState,
+    PaperRecordFilters,
+    ParsedPaperRecord,
     StorageConflictError,
     StorageConnectionError,
 )
@@ -38,19 +48,23 @@ def test_initial_migration_applies_and_reverts_cleanly(sqlite_engine: Engine) ->
     cfg = _config(sqlite_engine)
     command.upgrade(cfg, "head")
     inspector = inspect(sqlite_engine)
-    assert {"documents", "chunks", "crawl_state"} <= set(inspector.get_table_names())
+    assert {"documents", "chunks", "crawl_state", "parsed_paper_records"} <= set(
+        inspector.get_table_names()
+    )
 
-    for table in (documents, chunks, crawl_state):
+    for table in (documents, chunks, crawl_state, parsed_paper_records):
         expected = set(table.columns.keys())
         actual = {column["name"] for column in inspector.get_columns(table.name)}
         assert actual == expected, f"schema drift in {table.name}"
     assert "deleted_at" in documents.columns and "deleted_at" in chunks.columns
     assert "version" in documents.columns and "version" in chunks.columns
+    assert "last_crawled" in parsed_paper_records.columns
 
     command.downgrade(cfg, "base")
     assert not inspect(sqlite_engine).has_table("documents")
     assert not inspect(sqlite_engine).has_table("chunks")
     assert not inspect(sqlite_engine).has_table("crawl_state")
+    assert not inspect(sqlite_engine).has_table("parsed_paper_records")
 
 
 @pytest.fixture
@@ -124,9 +138,81 @@ def test_connection_failure_carries_host_and_is_not_retried() -> None:
     assert exc.value.context["host"] == "postgres.example.edu"
 
 
+def test_parsed_paper_record_round_trip_and_immutable_provenance(
+    store: PostgresMetadataStore,
+) -> None:
+    """ADR 0011: the stored record's frozen fields come back through find()."""
+    record = ParsedPaperRecord.from_question(question(), last_crawled=FIXED_TIME)
+    store.upsert_paper_record(record, ordinal=1, indexed_at=FIXED_TIME)
+    store.upsert_paper_record(record, ordinal=1, indexed_at=FIXED_TIME)
+
+    found = store.find_paper_records(PaperRecordFilters(course_code="CS-101", limit=5))
+    assert found == (record,)
+    assert found[0].source_url == record.source_url
+    assert found[0].last_crawled == record.last_crawled
+    assert found[0].page == record.page
+    assert found[0].image_ref == record.image_ref
+
+    changed = replace(record, source_url="https://example.edu/moved.pdf")
+    with pytest.raises(StorageConflictError):
+        store.upsert_paper_record(changed, ordinal=1, indexed_at=FIXED_TIME)
+
+
+def test_parsed_paper_records_filter_and_paginate_in_ordinal_order(
+    store: PostgresMetadataStore,
+) -> None:
+    """AND-combined filters and bounded pagination hold at the store boundary."""
+    base = ParsedPaperRecord.from_question(question(), last_crawled=FIXED_TIME)
+    for index, (course, year) in enumerate(((None, 2024), ("CS-101", 2023), ("CS-101", 2024))):
+        store.upsert_paper_record(
+            replace(base, question_id=f"q-{index}", course_code=course, year=year),
+            ordinal=index,
+            indexed_at=FIXED_TIME,
+        )
+
+    assert [item.question_id for item in store.find_paper_records(PaperRecordFilters())] == [
+        "q-0",
+        "q-1",
+        "q-2",
+    ]
+    assert [
+        item.question_id for item in store.find_paper_records(PaperRecordFilters(year=2024))
+    ] == [
+        "q-0",
+        "q-2",
+    ]
+    assert [
+        item.question_id
+        for item in store.find_paper_records(PaperRecordFilters(year=2024, limit=1, offset=1))
+    ] == ["q-2"]
+
+
+def test_in_memory_paper_record_store_matches_the_relational_semantics(
+    metadata_memory: InMemoryMetadataStore,
+) -> None:
+    """The fake used by the API's deterministic backend has the same contract."""
+    base = ParsedPaperRecord.from_question(question(), last_crawled=FIXED_TIME)
+    second = replace(base, question_id="q-2", course_code="MATH-101")
+    metadata_memory.upsert_paper_record(base, ordinal=1, indexed_at=FIXED_TIME)
+    metadata_memory.upsert_paper_record(second, ordinal=2, indexed_at=FIXED_TIME)
+
+    assert metadata_memory.find_paper_records(PaperRecordFilters()) == (base, second)
+    assert [
+        item.question_id
+        for item in metadata_memory.find_paper_records(PaperRecordFilters(course_code="CS-101"))
+    ] == [base.question_id]
+    with pytest.raises(StorageConflictError):
+        metadata_memory.upsert_paper_record(
+            replace(base, source_url="https://example.edu/moved.pdf"),
+            ordinal=1,
+            indexed_at=FIXED_TIME,
+        )
+
+
 def test_metadata_matches_alembic_tables() -> None:
     assert {table.name for table in metadata.tables.values()} == {
         "documents",
         "chunks",
         "crawl_state",
+        "parsed_paper_records",
     }

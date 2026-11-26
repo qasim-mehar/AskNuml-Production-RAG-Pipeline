@@ -13,7 +13,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
 
-from uni_rag_core import Chunk, Document, StorageError
+from uni_rag_core import Chunk, Document, ImageRef, PastPaperQuestion, StorageError
+from uni_rag_indexing.domain.filters import ensure_aware
 
 
 class StorageConnectionError(StorageError):
@@ -60,6 +61,88 @@ class CrawlState:
     updated_at: datetime
 
 
+@dataclass(frozen=True)
+class ParsedPaperRecord:
+    """A parsed past-paper question with provenance frozen at write time (ADR 0011).
+
+    This is the relational view of the API's ``PaperRecord``: the ADR 0007 finder
+    fields plus ``last_crawled``. Page images stay in ``ObjectStore``; only the
+    resolvable ``ImageRef`` is stored here. No enrichment, embedding or
+    operational filter state is part of this datum (ADR 0010).
+    """
+
+    question_id: str
+    doc_id: str
+    source_url: str
+    page: int
+    question_number: int
+    text: str
+    last_crawled: datetime
+    year: int | None = None
+    subject: str | None = None
+    options: tuple[str, ...] = ()
+    image_ref: ImageRef | None = None
+    course_code: str | None = None
+    term: str | None = None
+    exam_type: str | None = None
+    department: str | None = None
+
+    @classmethod
+    def from_question(
+        cls, question: PastPaperQuestion, *, last_crawled: datetime
+    ) -> ParsedPaperRecord:
+        """Freeze a parser's question and its crawl timestamp into one record."""
+        return cls(
+            question_id=question.question_id,
+            doc_id=question.doc_id,
+            source_url=question.source_url,
+            page=question.page,
+            question_number=question.question_number,
+            text=question.text,
+            last_crawled=ensure_aware(last_crawled, field="last_crawled"),
+            year=question.year,
+            subject=question.subject,
+            options=tuple(question.options),
+            image_ref=question.image_ref,
+            course_code=question.course_code,
+            term=question.term,
+            exam_type=question.exam_type,
+            department=question.department,
+        )
+
+    def to_question(self) -> PastPaperQuestion:
+        """Return the ADR 0007 finder fields carried by this stored record."""
+        return PastPaperQuestion(
+            question_id=self.question_id,
+            doc_id=self.doc_id,
+            source_url=self.source_url,
+            page=self.page,
+            question_number=self.question_number,
+            text=self.text,
+            year=self.year,
+            subject=self.subject,
+            options=list(self.options),
+            image_ref=self.image_ref,
+            course_code=self.course_code,
+            term=self.term,
+            exam_type=self.exam_type,
+            department=self.department,
+        )
+
+
+@dataclass(frozen=True)
+class PaperRecordFilters:
+    """Domain-local conjunction of the five finder axes plus bounded pagination."""
+
+    course_code: str | None = None
+    year: int | None = None
+    term: str | None = None
+    exam_type: str | None = None
+    department: str | None = None
+    limit: int = 20
+    offset: int = 0
+
+
 @runtime_checkable
 class MetadataStore(Protocol):
     """Read/write access to documents, chunk versions and crawl state."""
@@ -100,6 +183,16 @@ class MetadataStore(Protocol):
 
     def get_crawl_state(self, doc_id: str) -> CrawlState | None:
         """Return the stored crawl state or None."""
+        ...
+
+    def upsert_paper_record(
+        self, record: ParsedPaperRecord, *, ordinal: int, indexed_at: datetime
+    ) -> None:
+        """Persist a parsed record with its provenance frozen at write time."""
+        ...
+
+    def find_paper_records(self, filters: PaperRecordFilters) -> Sequence[ParsedPaperRecord]:
+        """Return matching parsed records in stable ordinal order, then paginate."""
         ...
 
 
