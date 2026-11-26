@@ -10,6 +10,8 @@ import {
   ErrorBodySchema,
   FeedbackResponseSchema,
   ImageRefSchema,
+  PaperRecordSchema,
+  PaperSearchResultSchema,
   PastPaperQuestionSchema,
   parseOrThrow,
   QuerySchema,
@@ -46,6 +48,13 @@ describe("core-emitted mirror fidelity (ADR 0007 fields)", () => {
     );
   });
 
+  it("round-trips a PaperRecord carrying the artifact's required last_crawled", () => {
+    expect(coreEmitted.paper_record.last_crawled).toBe("2026-11-20T09:30:00Z");
+    expect(roundTrip(PaperRecordSchema.parse(coreEmitted.paper_record))).toEqual(
+      coreEmitted.paper_record,
+    );
+  });
+
   it("round-trips an abstaining answer emitted by core", () => {
     expect(roundTrip(AnswerSchema.parse(coreEmitted.abstained_answer))).toEqual(
       coreEmitted.abstained_answer,
@@ -61,6 +70,20 @@ describe("OpenAPI artifact alignment", () => {
     expect(roundTrip(ImageRefSchema.parse(payloads.ImageRef))).toEqual(payloads.ImageRef);
     expect(roundTrip(AnswerSchema.parse(payloads.Answer))).toEqual(payloads.Answer);
     expect(roundTrip(ErrorBodySchema.parse(payloads.ErrorBody))).toEqual(payloads.ErrorBody);
+    expect(roundTrip(PaperRecordSchema.parse(payloads.PaperRecord))).toEqual(payloads.PaperRecord);
+    expect(roundTrip(PaperSearchResultSchema.parse(payloads.PaperSearchResult))).toEqual(
+      payloads.PaperSearchResult,
+    );
+  });
+
+  it("accepts the artifact's empty finder result and its declared error statuses", () => {
+    expect(openapiEmitted.papers.operationId).toBe("find_papers_api_v1_papers_get");
+    expect(openapiEmitted.papers.empty).toEqual({ results: [] });
+    expect(roundTrip(PaperSearchResultSchema.parse(openapiEmitted.papers.empty))).toEqual({
+      results: [],
+    });
+    expect(openapiEmitted.papers.errorStatuses).toEqual(expect.arrayContaining(["422", "503"]));
+    expect(openapiEmitted.papers.requestIdHeader).toBe("x-request-id");
   });
 
   it("accepts the API-local SSE envelopes and rejects unknown shapes", () => {
@@ -92,6 +115,25 @@ describe("strict edge validation", () => {
   it("rejects an extra field the artifact forbids", () => {
     expect(
       AnswerSchema.safeParse({ ...coreEmitted.answer, invented_field: true }).success,
+    ).toBe(false);
+  });
+
+  it("requires last_crawled on a PaperRecord and forbids unknown fields", () => {
+    expect(PaperRecordSchema.safeParse(coreEmitted.past_paper).success).toBe(false);
+    expect(
+      PaperRecordSchema.safeParse({
+        ...coreEmitted.paper_record,
+        invented_field: true,
+      }).success,
+    ).toBe(false);
+    expect(
+      PaperSearchResultSchema.safeParse({ results: [], invented_field: true }).success,
+    ).toBe(false);
+    expect(
+      PaperRecordSchema.safeParse({
+        ...coreEmitted.paper_record,
+        last_crawled: "not-a-date",
+      }).success,
     ).toBe(false);
   });
 });

@@ -1,13 +1,37 @@
 {
-  "source": "apps/api/openapi.json (routes and payloads); ADR 0007/0009 and Lane H milestone-1 CONTRACTS.md (conventions)",
+  "source": "apps/api/openapi.json (routes, payloads, filters and response declarations); ADR 0007/0009 and Lane H CONTRACTS.md (conventions)",
   "routes": {
     "query": "/api/v1/query",
-    "stream": "/api/v1/query/stream"
+    "stream": "/api/v1/query/stream",
+    "papers": "/api/v1/papers"
   },
   "conventions": {
     "feedback": "/api/v1/feedback",
-    "images_prefix": "/api/images/",
-    "papers": "/api/papers"
+    "images_prefix": "/api/images/"
+  },
+  "papers": {
+    "operationId": "find_papers_api_v1_papers_get",
+    "filters": [
+      "course_code",
+      "year",
+      "term",
+      "exam_type",
+      "department"
+    ],
+    "pagination": [
+      "limit",
+      "offset"
+    ],
+    "empty": {
+      "results": []
+    },
+    "errorStatuses": [
+      "401",
+      "422",
+      "429",
+      "503"
+    ],
+    "requestIdHeader": "x-request-id"
   },
   "payloads": {
     "Query": {
@@ -69,6 +93,62 @@
       "code": "upstream_unavailable",
       "message": "The knowledge service is temporarily unavailable.",
       "details": {}
+    },
+    "PaperRecord": {
+      "question_id": "question_id-artifact",
+      "doc_id": "d-artifact",
+      "source_url": "https://uni.example/source",
+      "page": 3,
+      "question_number": 3,
+      "text": "The fee is 1000.",
+      "year": 3,
+      "subject": "subject-artifact",
+      "options": [
+        "options-artifact"
+      ],
+      "image_ref": {
+        "ref_id": "img-artifact",
+        "source_url": "https://uni.example/source",
+        "page": 3,
+        "caption": "caption-artifact",
+        "mime_type": "image/png",
+        "image_url": "/api/images/img-1"
+      },
+      "course_code": "course_code-artifact",
+      "term": "term-artifact",
+      "exam_type": "exam_type-artifact",
+      "department": "department-artifact",
+      "last_crawled": "2026-11-20T09:30:00Z"
+    },
+    "PaperSearchResult": {
+      "results": [
+        {
+          "question_id": "question_id-artifact",
+          "doc_id": "d-artifact",
+          "source_url": "https://uni.example/source",
+          "page": 3,
+          "question_number": 3,
+          "text": "The fee is 1000.",
+          "year": 3,
+          "subject": "subject-artifact",
+          "options": [
+            "options-artifact"
+          ],
+          "image_ref": {
+            "ref_id": "img-artifact",
+            "source_url": "https://uni.example/source",
+            "page": 3,
+            "caption": "caption-artifact",
+            "mime_type": "image/png",
+            "image_url": "/api/images/img-1"
+          },
+          "course_code": "course_code-artifact",
+          "term": "term-artifact",
+          "exam_type": "exam_type-artifact",
+          "department": "department-artifact",
+          "last_crawled": "2026-11-20T09:30:00Z"
+        }
+      ]
     }
   }
 }

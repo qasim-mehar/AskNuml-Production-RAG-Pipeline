@@ -7,7 +7,10 @@
  * mirrors. No fixture invents provenance the payload does not carry (L5).
  */
 
-import type { Answer, Citation, FeedbackResponse, ImageRef, PastPaperQuestion } from "../schemas";
+import type { Answer, Citation, FeedbackResponse, ImageRef, PaperRecord } from "../schemas";
+
+/** Frozen crawl timestamp carried by every paper fixture (L4, L5). */
+export const PAPER_LAST_CRAWLED = "2026-11-20T09:30:00Z";
 
 /** Fallback case: no image_url, so the client must use /api/images/{ref_id}. */
 export const IMAGE_REF: ImageRef = {
@@ -129,7 +132,7 @@ export const STREAM_EVENTS: ReadonlyArray<{ event: string; payload: unknown }> =
   { event: "citations", payload: { answer: ENGLISH_ANSWER } },
 ];
 
-export const PAPER_RESULTS: PastPaperQuestion[] = [
+export const PAPER_RESULTS: PaperRecord[] = [
   {
     question_id: "question-4",
     doc_id: "doc-past",
@@ -145,6 +148,7 @@ export const PAPER_RESULTS: PastPaperQuestion[] = [
     term: "fall",
     exam_type: "final",
     department: "Computer Science",
+    last_crawled: PAPER_LAST_CRAWLED,
   },
   {
     question_id: "question-7",
@@ -161,6 +165,7 @@ export const PAPER_RESULTS: PastPaperQuestion[] = [
     term: "spring",
     exam_type: "midterm",
     department: null,
+    last_crawled: PAPER_LAST_CRAWLED,
   },
   {
     question_id: "question-ur-1",
@@ -177,6 +182,7 @@ export const PAPER_RESULTS: PastPaperQuestion[] = [
     term: "fall",
     exam_type: "final",
     department: "کمپیوٹر سائنس",
+    last_crawled: PAPER_LAST_CRAWLED,
   },
 ];
 
@@ -191,6 +197,12 @@ export const ERROR_BODY = {
 export const FEEDBACK_VALIDATION_ERROR = {
   code: "validation_error",
   message: "Feedback payload failed validation.",
+  details: {},
+};
+
+export const PAPER_VALIDATION_ERROR = {
+  code: "validation_error",
+  message: "Paper filters failed validation.",
   details: {},
 };
 

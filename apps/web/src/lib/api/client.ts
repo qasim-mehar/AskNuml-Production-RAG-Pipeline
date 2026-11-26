@@ -104,7 +104,11 @@ export async function feedback(request: FeedbackRequest): Promise<FeedbackResult
   };
 }
 
-/** Look up past papers; the finder route is an unresolved contract assumption. */
+/**
+ * GET /api/v1/papers: strict artifact `PaperSearchResult` with payload-carried
+ * last_crawled provenance; no match is `{"results": []}` with 200. 422/503 are typed
+ * `ApiError`s carrying the response's x-request-id.
+ */
 export async function papers(filters: PaperFilters): Promise<PaperSearchResult> {
   const queryString = filtersToQueryString(filters);
   const path = queryString === "" ? ROUTES.papers : `${ROUTES.papers}?${queryString}`;

@@ -15,6 +15,7 @@ import {
   FEEDBACK_VALIDATION_ERROR,
   IMAGE_ANSWER,
   PAPER_RESULTS,
+  PAPER_VALIDATION_ERROR,
   ROMAN_URDU_ANSWER,
   STREAM_EVENTS,
   URDU_ANSWER,
@@ -29,6 +30,8 @@ export type MockScenario =
   | "image"
   | "papers"
   | "emptyPapers"
+  | "papers422"
+  | "papers503"
   | "error"
   | "invalid"
   | "invalidStream"
@@ -195,9 +198,11 @@ async function mockFetch(input: RequestInfo | URL, init?: RequestInit): Promise<
     });
   }
   if (path === ROUTES.papers && request.method === "GET") {
-    if (scenario === "emptyPapers") return json(EMPTY_PAPER_RESULTS);
+    if (scenario === "papers422") return json(PAPER_VALIDATION_ERROR, 422, "req-papers-422");
+    if (scenario === "papers503") return json(ERROR_BODY, 503, "req-papers-503");
+    if (scenario === "emptyPapers") return json(EMPTY_PAPER_RESULTS, 200, "req-papers-empty-200");
     if (scenario === "error") return json(ERROR_BODY, 503);
-    return json({ results: PAPER_RESULTS });
+    return json({ results: PAPER_RESULTS }, 200, "req-papers-200");
   }
   if (path.startsWith(ROUTES.imagesPrefix) && request.method === "GET") {
     if (scenario === "missingImage") return json(ERROR_BODY, 404, "req-image-404");

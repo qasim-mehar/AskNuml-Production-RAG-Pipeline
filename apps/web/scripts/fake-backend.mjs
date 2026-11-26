@@ -57,8 +57,8 @@ const server = createServer(async (request, response) => {
     sendJson(response, 202, body, "req-fake-feedback-202");
     return;
   }
-  if (path === contract.conventions.papers && request.method === "GET") {
-    sendJson(response, 200, { results: [core.past_paper] }, "req-fake-papers-200");
+  if (path === contract.routes.papers && request.method === "GET") {
+    sendJson(response, 200, { results: [core.paper_record] }, "req-fake-papers-200");
     return;
   }
   if (path.startsWith(contract.conventions.images_prefix) && request.method === "GET") {

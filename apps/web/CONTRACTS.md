@@ -6,7 +6,7 @@ artifact is the contract-wave regeneration — it carries the ADR-0007 schema fi
 `Answer.abstention_reason`) but does **not** declare the feedback, image-serving or
 papers routes. Lane G's G2 route work is not present here. Routes not in the
 artifact are marked below and filed as CONTRACT-CHANGE notes; Web does not claim
-they are artifact-backed. Tests assert the two artifact routes against
+they are artifact-backed. Tests assert the artifact-resolved routes against
 `mocks/openapi-emitted.json`, generated from the artifact by
 `apps/web/scripts/generate_contract_fixture.py`.
 
@@ -27,16 +27,20 @@ they are artifact-backed. Tests assert the two artifact routes against
 | Feedback was local-only UI state with a mocked POST | **Resolved:** ADR 0009 grants a real local-only `202` echo that persists nothing. | UI reports acceptance honestly and does not imply persistence. |
 | Fixture source | **Resolved:** generated from core Pydantic dumps **and** the OpenAPI artifact. | `core-emitted.json` + `openapi-emitted.json`; both round-trip through the Zod mirrors in `schemas.test.ts`. |
 
-## CONTRACT-CHANGE notes for Lane 0 / Lane G
+## CONTRACT-CHANGE notes for Lane 0 / Lane G (swap-time backlog)
 
 1. Add `POST /api/v1/feedback` to `openapi.json` with the ADR 0009 request, `202`
    echo response and `422 ErrorBody`; the route implementation is not in this artifact.
 2. Add the papers finder route (path to confirm) and `PastPaperQuestion` schema to
    `openapi.json`; Web currently holds the milestone-1 `/api/papers` assumption.
+   **Resolved by G3 / M4:** the artifact declares `GET /api/v1/papers` with
+   `PaperRecord`/`PaperSearchResult`; Web now calls that route (see below).
 3. Add `GET /api/images/{ref_id}` with its image response content type; the
    `image_url` convention alone is not a served route in the artifact.
 4. Document `x-request-id` on every operation (or add the trace header to the
    artifact's documented headers) so error correlation is contract-backed.
+   **Resolved by G3:** the served artifact documents `x-request-id` on every
+   operation, including the papers route.
 5. Document the two SSE envelopes in the artifact, or state in its description that
    they are API-local per ADR 0009; today the 200 stream has no schema at all.
 6. The artifact declares `ApiKeyAuth` on the query routes. Web does not send or
@@ -50,3 +54,16 @@ fixtures deterministically: `core-emitted.json` from the frozen Pydantic models
 (with ADR-0007 fields populated) and `openapi-emitted.json` from the served
 artifact's `components.schemas` and `operationId`s. Tests never call the live API;
 the fetch router in `mocks/handlers.ts` serves these shapes from `globalThis.fetch`.
+
+## Milestone 4 — papers migration (G3 artifact, ADR 0011)
+
+The milestone-2 rows above are kept as the swap-time record. The served artifact
+now declares `GET /api/v1/papers` (`find_papers_api_v1_papers_get`): the five
+finder filters (`course_code`, `year`, `term`, `exam_type`, `department`), with
+`limit`/`offset` pagination defaults left to the artifact; a strict
+`{"results": []}` 200 on no match; `ErrorBody` on 401/422/429/503; and
+`x-request-id` on every response. Its `PaperRecord` is the ADR 0007
+`PastPaperQuestion` plus a required `last_crawled` date-time string, wrapped in a
+strict `PaperSearchResult`. Web's `papers()` now calls the artifact path, the
+strict TS mirror includes `PaperRecord`, and both generated fixtures carry the
+field, so route and mirror drift fail the suite.
