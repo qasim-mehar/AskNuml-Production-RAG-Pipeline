@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "feedback_fixture_id": "feedback-fixture-v1",
+  "description": "Offline, transcript-shaped feedback rows used to exercise feedback-to-golden ingestion. These are hand-written fixtures, NOT user feedback: ADR 0009's feedback route persists nothing and real feedback ingestion stays parked.",
+  "source": "fixture-transcript",
+  "live_feedback": false,
+  "rows": [
+    {
+      "feedback_id": "fb-en-01",
+      "answer_id": "ans-fb-en-01",
+      "sentiment": "negative",
+      "language": "en",
+      "query": "Who teaches CS-101 in Fall 2026?",
+      "expected_filters": {"doc_id": "doc-cs101-outline"},
+      "expected_chunk_ids": ["doc-cs101-outline::c01"],
+      "expected_answer_gist": "Dr. Ayesha Khan",
+      "expected_abstain": false,
+      "reason": "The answer did not name the instructor; the outline chunk does.",
+      "query_id": "ans-query-fb-en-01"
+    },
+    {
+      "feedback_id": "fb-en-02",
+      "answer_id": "ans-fb-en-02",
+      "sentiment": "positive",
+      "language": "en",
+      "query": "How late is the library open during exam week?",
+      "expected_filters": {"doc_id": "doc-announcements-2026"},
+      "expected_chunk_ids": ["doc-announcements-2026::c02"],
+      "expected_answer_gist": "until midnight",
+      "expected_abstain": false,
+      "reason": "Cited the announcement; keep this phrasing.",
+      "query_id": "ans-query-fb-en-02"
+    },
+    {
+      "feedback_id": "fb-ur-01",
+      "answer_id": "ans-fb-ur-01",
+      "sentiment": "negative",
+      "language": "ur",
+      "query": "CS-101 کے انسٹرکٹر کا نام کیا ہے؟",
+      "expected_filters": {"doc_id": "doc-cs101-outline"},
+      "expected_chunk_ids": ["doc-cs101-outline::c01"],
+      "expected_answer_gist": "ڈاکٹر عائشہ خان",
+      "expected_abstain": false,
+      "reason": "Very vague answer in Urdu; the instructor is named in the outline.",
+      "query_id": "ans-query-fb-ur-01"
+    },
+    {
+      "feedback_id": "fb-ur-02",
+      "answer_id": "ans-fb-ur-02",
+      "sentiment": "positive",
+      "language": "ur",
+      "query": "امتحان ہفتے کے دوران لائبریری کب تک کھلی رہتی ہے؟",
+      "expected_filters": {"doc_id": "doc-announcements-2026"},
+      "expected_chunk_ids": ["doc-announcements-2026::c02"],
+      "expected_answer_gist": "آدھی رات تک",
+      "expected_abstain": false,
+      "reason": "Correct citation and Urdu wording.",
+      "query_id": "ans-query-fb-ur-02"
+    },
+    {
+      "feedback_id": "fb-ru-01",
+      "answer_id": "ans-fb-ru-01",
+      "sentiment": "negative",
+      "language": "roman_urdu",
+      "query": "CS-101 ka semester kya hai?",
+      "expected_filters": {"doc_id": "doc-cs101-outline"},
+      "expected_chunk_ids": ["doc-cs101-outline::c01"],
+      "expected_answer_gist": "Fall 2026",
+      "expected_abstain": false,
+      "reason": "Semester was missing from the roman Urdu answer.",
+      "query_id": "ans-query-fb-ru-01"
+    },
+    {
+      "feedback_id": "fb-ru-02",
+      "answer_id": "ans-fb-ru-02",
+      "sentiment": "positive",
+      "language": "roman_urdu",
+      "query": "Library exam week mein kitni der khuli rehti hai?",
+      "expected_filters": {"doc_id": "doc-announcements-2026"},
+      "expected_chunk_ids": ["doc-announcements-2026::c02"],
+      "expected_answer_gist": "midnight tak",
+      "expected_abstain": false,
+      "reason": "Grounded in the announcement; keep this citation.",
+      "query_id": "ans-query-fb-ru-02"
+    }
+  ]
+}

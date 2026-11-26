@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from uni_rag_core import ValidationError
+from uni_rag_eval.domain.feedback import FEEDBACK_BACKEND_MARKER
 from uni_rag_eval.domain.golden import REQUIRED_LANGUAGES
 from uni_rag_eval.domain.variant import CHUNKING_STRATEGIES, NodePurposeRow
 from uni_rag_eval.runner.harness import MetricScores, RunResult
@@ -57,6 +58,16 @@ def adr0010_strip_label(backend: str) -> str:
     return "unlabelled strip — backend must name one (L1)"
 
 
+def _feedback_label_line(backend: str) -> list[str]:
+    """State the feedback input honestly when the backend label declares it (L1/L5)."""
+    if FEEDBACK_BACKEND_MARKER in backend:
+        return [
+            "- feedback input: labelled offline fixture transcript, NOT live user feedback "
+            "(ADR 0009)."
+        ]
+    return []
+
+
 def _metadata_lines(result: RunResult) -> list[str]:
     context = result.context
     return [
@@ -67,6 +78,7 @@ def _metadata_lines(result: RunResult) -> list[str]:
         f"- variant: `{context.variant_name}` (chunking: `{context.chunking_strategy}`)",
         f"- clock: `{context.clock}`",
         f"- top_k (k): `{context.top_k}`",
+        *_feedback_label_line(context.backend),
         f"- timestamp: `{context.timestamp}`",
         f"- config fingerprint: `{context.fingerprint()}`",
         "- scoring: retrieval metrics pool answerable ground truth; faithfulness and "
@@ -217,6 +229,7 @@ def summary_markdown(results: Sequence[RunResult], node_rows: Sequence[NodePurpo
         f"- golden set: `{first.golden_id if first else 'unknown'}`",
         f"- clock: `{first.clock if first else 'unknown'}`",
         f"- top_k (k): `{first.top_k if first else 'unknown'}`",
+        *_feedback_label_line(first.backend if first else ""),
         (
             "- all numbers are mechanics validation on the fake backend, not a quality claim."
             if first and first.backend == "fake"
@@ -260,6 +273,7 @@ def _comparison_labels(results: Sequence[RunResult]) -> list[str]:
         f"- golden set: `{first.golden_id if first else 'unknown'}`",
         f"- top_k (k): `{first.top_k if first else 'unknown'}`",
         "- every row is a measured run; a zero or tied row is a result (L1).",
+        *_feedback_label_line(first.backend if first else ""),
     ]
 
 

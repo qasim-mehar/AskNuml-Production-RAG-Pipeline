@@ -177,8 +177,9 @@ DEFAULT_VARIANT: Variant = build_variant(SearchMode.HYBRID, True, False)
 
 # Lane E's handoff (graph/README.md and graph/nodes.py) supplies the purpose and
 # required eval row verbatim. Only the six linear stages have a measured effect;
-# the four control-flow nodes stay awaiting measurement (L16). The six linear
-# effects are filled from the measured ablation by service.run.measured_l16_rows.
+# retry_rewrite moved from measured to removed in E3 and the three remaining
+# control-flow nodes stay awaiting measurement (L16). The six linear effects are
+# filled from the measured ablation by service.run.measured_l16_rows.
 LANE_E_NODE_ROWS: tuple[NodePurposeRow, ...] = (
     NodePurposeRow(
         node_name="route",
@@ -228,7 +229,11 @@ LANE_E_NODE_ROWS: tuple[NodePurposeRow, ...] = (
         node_name="retry_rewrite",
         purpose="Rewrite a weakly retrieved query once and repeat the search (capped loop).",
         required_eval_row="recall@k gain on weak-evidence rows vs the single-pass baseline.",
-        measured_effect="awaiting measurement",
+        measured_effect=(
+            "Removed after E3 (node deleted per L16 zero-gain verdict); "  # E3 handoff row text
+            "retry_rewrite_enabled / retry_rewrite_iterations retained as dormant flags; "
+            "reversal requires the parked live-transport re-run."
+        ),
     ),
     NodePurposeRow(
         node_name="clarify",

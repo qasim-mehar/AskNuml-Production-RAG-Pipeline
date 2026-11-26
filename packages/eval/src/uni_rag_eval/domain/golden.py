@@ -45,6 +45,10 @@ class GoldenRecord(BaseModel):
     expected_chunk_ids: list[str] = Field(default_factory=list)
     expected_answer_gist: str
     expected_abstain: bool = False
+    # Only feedback-derived rows carry a label. Curated rows leave it unset, so
+    # the committed golden.json stays byte-identical and nothing is relabelled
+    # as feedback after the fact (L1/L5).
+    provenance: str | None = None
 
 
 class GoldenSet(BaseModel):

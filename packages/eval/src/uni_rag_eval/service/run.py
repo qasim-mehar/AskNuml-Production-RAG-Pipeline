@@ -15,8 +15,14 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from uni_rag_core import Chunk, FakeClock, get_logger
+from uni_rag_eval.domain.feedback import (
+    feedback_backend_label,
+    ingest_feedback,
+    load_feedback_fixture,
+)
 from uni_rag_eval.domain.golden import (
     FixtureRegistry,
     GoldenSet,
@@ -44,7 +50,12 @@ from uni_rag_eval.domain.variant import (
     variant_matrix,
 )
 from uni_rag_eval.runner import ablation
-from uni_rag_eval.runner.gate import RegressionError, assert_no_regression, load_baseline
+from uni_rag_eval.runner.gate import (
+    RegressionError,
+    assert_no_regression,
+    load_baseline,
+    write_baseline_from_run,
+)
 from uni_rag_eval.runner.harness import (
     DEFAULT_ABSTENTION_THRESHOLD,
     RetrievalCallable,
@@ -92,6 +103,42 @@ def load_eval_inputs(golden_path: Path, registry_path: Path) -> tuple[GoldenSet,
         questions=len(golden.records),
     )
     return golden, registry
+
+
+def write_json_payload(path: Path, payload: Mapping[str, Any]) -> None:
+    """Write a deterministic JSON artifact (L4); used for the extended golden set."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+
+
+def _default_result(results: Sequence[RunResult]) -> RunResult:
+    return next(
+        (result for result in results if result.context.variant_name == DEFAULT_VARIANT.name),
+        results[0],
+    )
+
+
+def write_baseline_extension(results: Sequence[RunResult], path: Path, baseline_id: str) -> None:
+    """Declare a separate labelled baseline; never touches the committed baseline.json."""
+    if path.name == "baseline.json" and path.parent.name == "golden":
+        raise RuntimeError("a baseline extension must not overwrite baseline.json (L1)")
+    note = (
+        "Declared baseline extension for the labelled offline feedback-fixture run (L1). "
+        "This is NOT a change to baseline.json; divergences from the curated baseline "
+        "are reported in eval/reports/feedback-reconciliation.md and never absorbed."
+    )
+    write_baseline_from_run(_default_result(results), path, baseline_id=baseline_id, note=note)
+    _LOG.info("eval.baseline.extension_written", path=str(path), baseline_id=baseline_id)
+
+
+def write_declared_extension(results: Sequence[RunResult], args: argparse.Namespace) -> None:
+    """Only a fully labelled composition may declare a baseline extension (L1)."""
+    if args.write_baseline is None:
+        return
+    if args.pipeline_factory is None or args.backend is None:
+        raise RuntimeError("--write-baseline requires --pipeline-factory and --backend (L1)")
+    write_baseline_extension(results, args.write_baseline, args.baseline_id)
 
 
 def run_variant(
@@ -379,6 +426,7 @@ def measured_l16_rows(
         and record.expected_filters.get("doc_id")
         in {doc_ids[cid] for cid in record.expected_chunk_ids if cid in doc_ids}
     )
+    answerable = sum(1 for record in golden.records if not record.expected_abstain)
 
     def _delta(name: str, left: RunResult, right: RunResult) -> str:
         parts = []
@@ -391,8 +439,8 @@ def measured_l16_rows(
     effects = {
         "route": f"Measured: {routed}/{len(golden.records)} records route to a supported language "
         "with a resolvable or intentionally empty filter; no linear-baseline regression observed.",
-        "filter": f"Measured: {filtered}/27 answerable records retain the expected doc_id "
-        "after filtering.",
+        "filter": f"Measured: {filtered}/{answerable} answerable records retain the expected "
+        "doc_id after filtering.",
         "search": "Measured hybrid-vs-dense recall@5 delta (rerank off): "
         + _delta("recall_at_k", dense_off, hybrid_off),
         "rerank": "Measured rerank-on minus rerank-off (hybrid) ndcg: "
@@ -404,17 +452,10 @@ def measured_l16_rows(
         f"citation-resolution {default.overall.citation_resolution:.4f} overall (hybrid, "
         "rerank on), read natively from Citation.last_crawled.",
     }
-    if retry is not None:
-        composition = ", ".join(
-            f"{language} {count}"
-            for language, count in sorted(retry.subset.counts_by_language.items())
-        )
-        deltas = ", ".join(f"{language} {gain:+.4f}" for language, gain in retry.gains.items())
-        effects["retry_rewrite"] = (
-            f"Measured recall@5 gain on weak-evidence rows (n={len(retry.subset.record_ids)}; "
-            f"{composition or 'none in any language'}): {deltas}; "
-            f"L16 verdict {retry.verdict.value}."
-        )
+    # ``retry`` is retained for the historical comparison artifact, but E3
+    # removed the node: its row stays at the handoff's "removed" text rather
+    # than being recomputed as an actively measured node (L16).
+    _ = retry
     return tuple(
         row.model_copy(update={"measured_effect": effects[row.node_name]})
         if row.node_name in effects
@@ -433,6 +474,29 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--run-id", default=DEFAULT_RUN_ID)
     parser.add_argument("--baseline", type=Path, default=None)
     parser.add_argument(
+        "--feedback",
+        type=Path,
+        default=None,
+        help="labelled offline feedback fixture ingested before the run (never live feedback)",
+    )
+    parser.add_argument(
+        "--write-golden",
+        type=Path,
+        default=None,
+        help="write the feedback-extended golden set here; requires --feedback",
+    )
+    parser.add_argument(
+        "--write-baseline",
+        type=Path,
+        default=None,
+        help="declare a separate labelled baseline extension; never edits baseline.json",
+    )
+    parser.add_argument(
+        "--baseline-id",
+        default="integrated-offline-feedback-fixture-v1",
+        help="baseline_id for the artifact written by --write-baseline",
+    )
+    parser.add_argument(
         "--pipeline-factory",
         default=None,
         help="module:attr handed in by the integration configuration",
@@ -449,6 +513,29 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     golden, registry = load_eval_inputs(args.golden, args.registry)
+    if args.feedback is not None:
+        fixture = load_feedback_fixture(_read_payload(args.feedback))
+        golden = ingest_feedback(
+            golden,
+            fixture,
+            registry,
+            golden_id="curated-30-plus-feedback-6-v1",
+            description=(
+                "30 curated questions plus 6 labelled feedback-derived rows from the "
+                "offline fixture transcript (2 per language). NOT real user feedback: "
+                "the feedback route persists nothing (ADR 0009) and real ingestion is parked."
+            ),
+        )
+        verified = {
+            doc.source_path
+            for doc in registry.documents
+            if (args.golden.resolve().parents[2] / doc.source_path).is_file()
+        }
+        validate_golden_set(golden, registry, verified)
+        if args.write_golden is not None:
+            write_json_payload(args.write_golden, golden.model_dump(mode="json"))
+    elif args.write_golden is not None:
+        raise RuntimeError("--write-golden requires --feedback (L1)")
     factory = None
     if args.pipeline_factory:
         module_name, separator, attr = args.pipeline_factory.partition(":")
@@ -458,6 +545,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise ValidationError("--pipeline-factory must be module:attr")
         factory = getattr(importlib.import_module(module_name), attr)
     backend_label = args.backend or ("configured" if factory else "fake")
+    if args.feedback is not None:
+        # Enforce the provenance label in production, not just in tests (L1/L5).
+        backend_label = feedback_backend_label(backend_label)
     if args.mode == "m3":
         if factory is None:
             raise RuntimeError("m3 mode requires --pipeline-factory (L1/L3)")
@@ -492,11 +582,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             pipeline_factory=factory,
             retry=retry,
         )
-        ablation.write_latest(
-            results,
-            args.reports,
-            measured_l16_rows(golden, registry, results, retry=retry),
-        )
+        if args.backend is not None:
+            ablation.write_latest(
+                results,
+                args.reports,
+                measured_l16_rows(golden, registry, results, retry=retry),
+            )
+        write_declared_extension(results, args)
         _LOG.info(
             "eval.m3.complete",
             verdict=retry.verdict.value,
@@ -515,6 +607,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         clock_label=args.clock,
         pipeline_factory=factory,
     )
+    # Only a fully labelled composition owns the committed latest.md. The plain
+    # fake-backend CLI must not overwrite the integrated summary with fake numbers.
+    if args.pipeline_factory is not None and args.backend is not None:
+        ablation.write_latest(
+            results,
+            args.reports,
+            measured_l16_rows(golden, registry, results),
+        )
     if args.baseline is not None:
         baseline = load_baseline(args.baseline)
         gate_result = next(
@@ -531,6 +631,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         _LOG.info(
             "eval.gate.passed", baseline_id=baseline.baseline_id, failures=list(report.failures)
         )
+    write_declared_extension(results, args)
     return 0
 
 
