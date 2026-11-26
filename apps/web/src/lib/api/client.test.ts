@@ -3,13 +3,18 @@ import { describe, expect, it, vi } from "vitest";
 import contract from "./mocks/openapi-emitted.json";
 import {
   CITATION,
+  EMPTY_PAPER_RESULTS,
   ENGLISH_ANSWER,
   ERROR_BODY,
   FEEDBACK_REQUEST,
+  PAPER_LAST_CRAWLED,
+  PAPER_VALIDATION_ERROR,
   STREAM_EVENTS,
 } from "./mocks/fixtures";
 import { lastMockCall, setMockScenario, STREAM_TICK_MS } from "./mocks/handlers";
 import { feedback, papers, query, stream } from "./client";
+import { requestIdFrom } from "./errors";
+import { EMPTY_FILTERS } from "../filters";
 import type { Query } from "./schemas";
 
 const TEST_QUERY: Query = {
@@ -81,8 +86,11 @@ describe("live API client routes and edge validation", () => {
     });
     const url = new URL(lastMockCall()?.url ?? "http://localhost/");
 
-    expect(pathOf(url.toString())).toBe(contract.conventions.papers);
-    expect(Object.fromEntries(url.searchParams)).toEqual({
+    expect(pathOf(url.toString())).toBe(contract.routes.papers);
+    const params = Object.fromEntries(url.searchParams);
+    expect(contract.papers.pagination).toEqual(["limit", "offset"]);
+    expect(Object.keys(params)).toEqual(contract.papers.filters);
+    expect(params).toEqual({
       course_code: "CS",
       year: "2024",
       term: "fall",
@@ -90,6 +98,43 @@ describe("live API client routes and edge validation", () => {
       department: "کمپیوٹر سائنس",
     });
     expect(result.results[0]?.course_code).toBe("CS");
+    expect(result.results[0]?.last_crawled).toBe(PAPER_LAST_CRAWLED);
+  });
+
+  it("returns the artifact's empty {results: []} shape on no match", async () => {
+    setMockScenario("emptyPapers");
+    const result = await papers(EMPTY_FILTERS);
+
+    expect(result).toEqual(contract.papers.empty);
+    expect(result).toEqual(EMPTY_PAPER_RESULTS);
+  });
+
+  it("surfaces papers 422 and 503 as typed errors with their own request ids", async () => {
+    expect(contract.papers.errorStatuses).toEqual(expect.arrayContaining(["422", "503"]));
+
+    setMockScenario("papers422");
+    await expect(papers(EMPTY_FILTERS)).rejects.toMatchObject({
+      kind: "http",
+      status: 422,
+      code: PAPER_VALIDATION_ERROR.code,
+      requestId: "req-papers-422",
+    });
+
+    setMockScenario("papers503");
+    await expect(papers(EMPTY_FILTERS)).rejects.toMatchObject({
+      kind: "http",
+      status: 503,
+      code: ERROR_BODY.code,
+      message: ERROR_BODY.message,
+      requestId: "req-papers-503",
+    });
+  });
+
+  it("reads the artifact-declared x-request-id from a finder response", () => {
+    const header = contract.papers.requestIdHeader;
+    expect(header).toBe("x-request-id");
+    const response = new Response(null, { headers: { [header]: "req-papers-200" } });
+    expect(requestIdFrom(response.headers)).toBe("req-papers-200");
   });
 
   it("surfaces a typed HTTP error carrying the trace request id", async () => {

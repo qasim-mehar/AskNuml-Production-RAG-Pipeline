@@ -6,12 +6,15 @@ Run from the repository root:
 Two deterministic files are written to ``apps/web/src/lib/api/mocks``:
 
 * ``core-emitted.json`` — real Pydantic core model dumps, including the optional
-  ADR-0007 provenance fields. The Vitest mirror suite round-trips these through
-  the TypeScript Zod schemas, so mirror fidelity is measured against real core
-  output rather than a hand-written copy (L1).
-* ``openapi-emitted.json`` — example payloads and route strings derived from
-  ``apps/api/openapi.json`` (the served artifact). Tests assert client routes and
-  response shapes against this file instead of hand-written URLs, so artifact
+  ADR-0007 provenance fields, plus ``paper_record``: the core dump extended with
+  the API-local ``last_crawled`` field of the artifact's ``PaperRecord`` (ADR
+  0011). The Vitest mirror suite round-trips these through the TypeScript Zod
+  schemas, so mirror fidelity is measured against real core output rather than
+  a hand-written copy (L1).
+* ``openapi-emitted.json`` — example payloads, route strings, finder filters,
+  the empty result shape, error statuses and the documented trace header derived
+  from ``apps/api/openapi.json`` (the served artifact). Tests assert client routes
+  and response shapes against this file instead of hand-written URLs, so artifact
   drift fails the suite.
 
 This is a development-time generator; tests never import Python or the API.
@@ -37,14 +40,15 @@ OPENAPI = REPO_ROOT / "apps" / "api" / "openapi.json"
 
 CRAWLED_AT = datetime(2026, 11, 20, 9, 30, tzinfo=UTC)
 
-# Routes the artifact does not declare yet. Values come from binding ADRs and
-# Lane H's milestone-1 CONTRACTS.md, never from a hand-written test URL. They are
-# labelled in CONTRACTS.md and raised as CONTRACT-CHANGE notes for Lane 0 / G.
+# Routes that come from binding ADRs rather than a hand-written test URL. The
+# papers route is no longer a convention: G3 emitted it, so it is resolved from
+# the served artifact's operationId alongside query and stream.
 CONVENTIONS = {
     "feedback": "/api/v1/feedback",  # ADR 0009
     "images_prefix": "/api/images/",  # ADR 0007
-    "papers": "/api/papers",  # Lane H assumption; G has not emitted this route
 }
+
+PAPERS_OPERATION_ID = "find_papers_api_v1_papers_get"
 
 
 def core_payload() -> dict[str, Any]:
@@ -116,6 +120,13 @@ def core_payload() -> dict[str, Any]:
         "image_ref": json.loads(image.model_dump_json()),
         "answer": json.loads(answer.model_dump_json()),
         "past_paper": json.loads(paper.model_dump_json()),
+        # PaperRecord is API-local: PastPaperQuestion plus the frozen crawl time.
+        # Core cannot emit the field, so extend its dump with the same frozen
+        # timestamp used for Citation provenance (L5, ADR 0011).
+        "paper_record": {
+            **json.loads(paper.model_dump_json()),
+            "last_crawled": CRAWLED_AT.isoformat().replace("+00:00", "Z"),
+        },
         "abstained_answer": json.loads(abstained.model_dump_json()),
     }
 
@@ -194,21 +205,64 @@ def path_for_operation(artifact: dict[str, Any], operation_id: str) -> str:
     raise RuntimeError(f"OpenAPI artifact is missing operationId {operation_id!r}")
 
 
+def papers_contract(artifact: dict[str, Any]) -> dict[str, Any]:
+    """Derive the finder's filters, empty shape and error contract from the artifact."""
+    operation = next(
+        op
+        for methods in artifact["paths"].values()
+        for op in methods.values()
+        if isinstance(op, dict) and op.get("operationId") == PAPERS_OPERATION_ID
+    )
+    responses = operation["responses"]
+    schemas = artifact["components"]["schemas"]
+    empty = example_from_schema(schemas["PaperSearchResult"], schemas, "PaperSearchResult")
+    empty["results"] = []
+    # Pagination parameters carry defaults; the finder's filters do not. Web
+    # sends the filters only and accepts the artifact's pagination defaults.
+    parameters = operation["parameters"]
+    pagination = [p["name"] for p in parameters if "default" in p["schema"]]
+    return {
+        "operationId": operation["operationId"],
+        "filters": [p["name"] for p in parameters if p["name"] not in pagination],
+        "pagination": pagination,
+        "empty": empty,
+        "errorStatuses": sorted(
+            status
+            for status, response in responses.items()
+            if any(
+                content.get("schema", {}).get("$ref") == "#/components/schemas/ErrorBody"
+                for content in response.get("content", {}).values()
+            )
+        ),
+        "requestIdHeader": next(iter(responses["200"]["headers"])),
+    }
+
+
 def artifact_payload() -> dict[str, Any]:
     """Derive routes and example payloads from the served OpenAPI artifact."""
     artifact = json.loads(OPENAPI.read_text(encoding="utf-8"))
     schemas = artifact["components"]["schemas"]
-    mirrored = ["Query", "Answer", "Citation", "ImageRef", "ErrorBody"]
+    mirrored = [
+        "Query",
+        "Answer",
+        "Citation",
+        "ImageRef",
+        "ErrorBody",
+        "PaperRecord",
+        "PaperSearchResult",
+    ]
     return {
         "source": (
-            "apps/api/openapi.json (routes and payloads); "
-            "ADR 0007/0009 and Lane H milestone-1 CONTRACTS.md (conventions)"
+            "apps/api/openapi.json (routes, payloads, filters and response declarations); "
+            "ADR 0007/0009 and Lane H CONTRACTS.md (conventions)"
         ),
         "routes": {
             "query": path_for_operation(artifact, "query_api_v1_query_post"),
             "stream": path_for_operation(artifact, "stream_api_v1_query_stream_post"),
+            "papers": path_for_operation(artifact, PAPERS_OPERATION_ID),
         },
         "conventions": CONVENTIONS,
+        "papers": papers_contract(artifact),
         "payloads": {
             schema_name: example_from_schema(schemas[schema_name], schemas, schema_name)
             for schema_name in mirrored

@@ -31,7 +31,7 @@ describe("PapersPage", () => {
 
     await screen.findByRole("list", { name: "Past-paper results" });
     const url = new URL(lastMockCall()?.url ?? "http://localhost/");
-    expect(url.pathname).toBe(contract.conventions.papers);
+    expect(url.pathname).toBe(contract.routes.papers);
     expect(Object.fromEntries(url.searchParams)).toEqual({
       course_code: "CS",
       year: "2024",

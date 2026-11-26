@@ -5,7 +5,8 @@ import { ApiError } from "./errors";
 /**
  * Strict TypeScript mirrors of every payload Web reads at the edge.
  * Source of truth: `apps/api/openapi.json` (served artifact) plus the frozen
- * core Pydantic models for `PastPaperQuestion` (no artifact route yet).
+ * core Pydantic models for `PastPaperQuestion`; the artifact's `PaperRecord`
+ * adds the required `last_crawled` provenance field (ADR 0011).
  * Fidelity is pinned by `schemas.test.ts`, which round-trips both generated
  * fixtures (`mocks/core-emitted.json`, `mocks/openapi-emitted.json`) through
  * these mirrors. Unknown fields are rejected, never carried into the UI.
@@ -104,7 +105,8 @@ export const PastPaperQuestionSchema = z
     subject: z.string().nullable().default(null),
     options: z.array(z.string()).default([]),
     image_ref: ImageRefSchema.nullable().default(null),
-    // ADR 0007 adds these to core; Lane G has not emitted a papers route yet.
+    // ADR 0007 finder fields from core; the artifact's PaperRecord adds
+    // required last_crawled provenance on top of this datum (ADR 0011).
     course_code: z.string().nullable().default(null),
     term: z.string().nullable().default(null),
     exam_type: z.string().nullable().default(null),
@@ -113,9 +115,19 @@ export const PastPaperQuestionSchema = z
   .strict();
 export type PastPaperQuestion = z.infer<typeof PastPaperQuestionSchema>;
 
-/** Lane H assumption: no artifact route/schema for the finder yet (CONTRACT-CHANGE). */
+/**
+ * Artifact `PaperRecord`: the core question fields plus the frozen crawl time.
+ * Required as a date-time string in the artifact; never reconstructed by Web.
+ */
+export const PaperRecordSchema = PastPaperQuestionSchema.extend({
+  // Artifact format: date-time; accept both `Z` and explicit UTC offsets.
+  last_crawled: z.iso.datetime({ offset: true }),
+}).strict();
+export type PaperRecord = z.infer<typeof PaperRecordSchema>;
+
+/** Artifact `PaperSearchResult`: strict `{results: PaperRecord[]}`; no match is `[]`. */
 export const PaperSearchResultSchema = z
-  .object({ results: z.array(PastPaperQuestionSchema) })
+  .object({ results: z.array(PaperRecordSchema) })
   .strict();
 export type PaperSearchResult = z.infer<typeof PaperSearchResultSchema>;
 
