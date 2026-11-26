@@ -34,6 +34,7 @@ from uni_rag_core import (
 )
 from uni_rag_core.schemas import Chunk
 from uni_rag_eval.domain import metrics as metric_fns
+from uni_rag_eval.domain.feedback import FEEDBACK_PROVENANCE
 from uni_rag_eval.domain.golden import REQUIRED_LANGUAGES, GoldenSet
 from uni_rag_eval.domain.judge import (
     FAITHFULNESS_SYSTEM_PROMPT,
@@ -472,36 +473,54 @@ def language_counts(golden_set: GoldenSet) -> Mapping[str, int]:
     return dict(counts)
 
 
+# F5's single declared rule for the six feedback-derived rows. They are part of
+# the operative extended golden set and its labelled baseline, grounded against
+# the fixture corpus and stamped `live_feedback=False`, so they are INCLUDED in
+# the weak-evidence subset. One rule, shared by every measured node (L1/L5/L7).
+INCLUDE_FEEDBACK_SUBSET_RULE = (
+    "include-feedback-derived|source=fixture-transcript|live_feedback=False"
+)
+EXCLUDE_FEEDBACK_SUBSET_RULE = (
+    "exclude-feedback-derived|source=fixture-transcript|live_feedback=False"
+)
+
+
 @dataclass(frozen=True)
 class WeakEvidenceSubset:
     """Answerable rows whose single-pass leading score was below the threshold.
 
-    ``counts_by_language`` is always reported with the subset, so a verdict can
-    never rest on an unlabelled aggregate (L7).
+    ``counts_by_language`` and ``subset_rule`` are always reported with the
+    subset, so a verdict can never rest on an unlabelled aggregate (L7).
     """
 
     record_ids: frozenset[str]
     record_languages: Mapping[str, str]
     counts_by_language: Mapping[str, int]
     threshold: float
+    subset_rule: str = INCLUDE_FEEDBACK_SUBSET_RULE
 
 
 def weak_evidence_subset(
     golden_set: GoldenSet,
     single_pass: RunResult,
     threshold: float = DEFAULT_ABSTENTION_THRESHOLD,
+    *,
+    include_feedback_derived: bool = True,
 ) -> WeakEvidenceSubset:
-    """Select the rows where retry_rewrite is eligible to fire.
+    """Select the rows where a control-flow node is eligible to fire.
 
     A row is weak when it has answerable ground truth and the single-pass
     pipeline's leading score is below ``threshold``. Abstention-only rows are
     excluded: they have no expected evidence, so a recall gain there would be
-    unmeasurable rather than a node effect (L1).
+    unmeasurable rather than a node effect (L1). Feedback-derived rows follow
+    one declared rule (included by default) and the chosen rule is labelled on
+    the subset itself, so every node report can print the same provenance (L5).
     """
     answerable = {
         record.id: record.language.value
         for record in golden_set.records
         if record.expected_chunk_ids
+        and (include_feedback_derived or record.provenance != FEEDBACK_PROVENANCE)
     }
     confidences = {trace.record_id: trace.confidence for trace in single_pass.traces}
     ids = frozenset(
@@ -510,11 +529,15 @@ def weak_evidence_subset(
     counts: dict[str, int] = defaultdict(int)
     for record_id in ids:
         counts[answerable[record_id]] += 1
+    rule = (
+        INCLUDE_FEEDBACK_SUBSET_RULE if include_feedback_derived else EXCLUDE_FEEDBACK_SUBSET_RULE
+    )
     return WeakEvidenceSubset(
         record_ids=ids,
         record_languages=answerable,
         counts_by_language=dict(counts),
         threshold=threshold,
+        subset_rule=rule,
     )
 
 

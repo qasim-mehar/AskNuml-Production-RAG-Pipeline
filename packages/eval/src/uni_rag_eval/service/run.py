@@ -39,12 +39,15 @@ from uni_rag_eval.domain.variant import (
     FIXED_WINDOW,
     INTEGRATED_CHUNKING,
     LANE_E_NODE_ROWS,
+    NODE_VARIANTS,
     SENTENCE_BOUNDARY,
     NodePurposeRow,
+    NodeVariant,
     SearchMode,
     Variant,
     Verdict,
     build_variant,
+    l16_verdict,
     make_variant_name,
     retry_rewrite_verdict,
     variant_matrix,
@@ -378,14 +381,152 @@ def run_strategy_comparison(
     return StrategyComparison(results=results, recall_gains=gains, tied=tied)
 
 
+@dataclass(frozen=True)
+class NodeComparison:
+    """One node-on run against the shared single-pass baseline (L1/L16)."""
+
+    node: NodeVariant
+    single_pass: RunResult
+    node_on: RunResult
+    subset: WeakEvidenceSubset
+    recall_off: Mapping[str, float]
+    recall_on: Mapping[str, float]
+    gains: Mapping[str, float]
+    verdict: Verdict
+    reversal_condition: str
+
+
+@dataclass(frozen=True)
+class F5Comparisons:
+    """One baseline and subset shared by every measured node (L1/L7)."""
+
+    single_pass: RunResult
+    subset: WeakEvidenceSubset
+    nodes: Mapping[NodeVariant, NodeComparison]
+
+
+REVERSAL_CONDITIONS: Mapping[NodeVariant, str] = {
+    NodeVariant.CLARIFY: (
+        "Reversal of REMOVE needs a live transport that supplies a parsed missing "
+        "filter (CLARIFY_DOC_ID); the offline transport only echoes its prompt."
+    ),
+    NodeVariant.MULTIHOP: (
+        "Reversal of REMOVE needs a live transport that supplies a second-document "
+        "query (MULTIHOP_QUERY); the offline transport only echoes its prompt."
+    ),
+    NodeVariant.CHECKPOINT_FOLLOWUP: (
+        "Reversal of REMOVE needs a live transport that supplies carried citation ids "
+        "(FOLLOWUP_CITATIONS); the offline transport only echoes its prompt. The "
+        "LangGraph dependency stays CLOSED as not adopted; reopen only if a node-"
+        "orchestration requirement emerges."
+    ),
+}
+
+
+def run_node_comparison(
+    golden: GoldenSet,
+    registry: FixtureRegistry,
+    pipeline_factory: PipelineFactory,
+    *,
+    node: NodeVariant,
+    single_pass: RunResult,
+    subset: WeakEvidenceSubset,
+    top_k: int = 5,
+    run_id: str = "control-flow-node-m5",
+    backend: str,
+    corpus: str,
+    clock: str,
+) -> NodeComparison:
+    """Run one node-on variant against the shared single-pass result and subset."""
+    base = build_variant(SearchMode.HYBRID, True, False)
+    node_on_variant = base.model_copy(
+        update={"name": f"{base.name}-node={node.value}-on", "node_variant": node}
+    )
+    if (
+        node_on_variant.model_copy(
+            update={"node_variant": NodeVariant.SINGLE_PASS, "name": base.name}
+        )
+        != base
+    ):
+        raise RuntimeError("node on/off variants must differ only by the node axis (L1)")
+    node_on = run_variant(
+        golden,
+        registry,
+        node_on_variant,
+        top_k=top_k,
+        run_id=run_id,
+        backend=backend,
+        corpus=corpus,
+        clock_label=clock,
+        retrieval=pipeline_factory(node_on_variant),
+    )
+    gains = recall_gain_on_subset(subset, single_pass, node_on)
+    return NodeComparison(
+        node=node,
+        single_pass=single_pass,
+        node_on=node_on,
+        subset=subset,
+        recall_off=subset_recall(subset, single_pass),
+        recall_on=subset_recall(subset, node_on),
+        gains=gains,
+        verdict=l16_verdict(gains),
+        reversal_condition=REVERSAL_CONDITIONS[node],
+    )
+
+
+def run_f5_comparisons(
+    golden: GoldenSet,
+    registry: FixtureRegistry,
+    pipeline_factory: PipelineFactory,
+    *,
+    top_k: int = 5,
+    run_id: str = "control-flow-node-m5",
+    backend: str,
+    corpus: str,
+    clock: str,
+) -> F5Comparisons:
+    """Run the single pass once, then every node with the same subset rule (L1/L7)."""
+    base = build_variant(SearchMode.HYBRID, True, False)
+    single_pass = run_variant(
+        golden,
+        registry,
+        base,
+        top_k=top_k,
+        run_id=run_id,
+        backend=backend,
+        corpus=corpus,
+        clock_label=clock,
+        retrieval=pipeline_factory(base),
+    )
+    subset = weak_evidence_subset(golden, single_pass)
+    nodes = {
+        node: run_node_comparison(
+            golden,
+            registry,
+            pipeline_factory,
+            node=node,
+            single_pass=single_pass,
+            subset=subset,
+            top_k=top_k,
+            run_id=run_id,
+            backend=backend,
+            corpus=corpus,
+            clock=clock,
+        )
+        for node in NODE_VARIANTS
+    }
+    return F5Comparisons(single_pass=single_pass, subset=subset, nodes=nodes)
+
+
 def measured_l16_rows(
     golden: GoldenSet,
     registry: FixtureRegistry,
     results: Sequence[RunResult],
     rows: Sequence[NodePurposeRow] = LANE_E_NODE_ROWS,
     retry: RetryRewriteComparison | None = None,
+    nodes: Mapping[NodeVariant, NodeComparison] | None = None,
 ) -> tuple[NodePurposeRow, ...]:
-    """Fill the linear L16 effects from measured data; leave future nodes awaiting (L16)."""
+    """Fill measured L16 effects from data; leave unmeasured nodes awaiting (L16)."""
     by_variant = {result.context.variant_name: result for result in results}
     default = by_variant.get(DEFAULT_VARIANT.name, results[0])
     hybrid_off = next(
@@ -456,6 +597,22 @@ def measured_l16_rows(
     # removed the node: its row stays at the handoff's "removed" text rather
     # than being recomputed as an actively measured node (L16).
     _ = retry
+    if nodes:
+        for node, comparison in nodes.items():
+            composition = ", ".join(
+                f"{language} {count}"
+                for language, count in sorted(comparison.subset.counts_by_language.items())
+            )
+            deltas = ", ".join(
+                f"{language} {gain:+.4f}" for language, gain in comparison.gains.items()
+            )
+            effects[node.value] = (
+                f"Measured recall@5 gain on weak-evidence rows "
+                f"(n={len(comparison.subset.record_ids)}; {composition or 'none'}; "
+                f"{comparison.subset.subset_rule}): {deltas}; "
+                f"L16 verdict {comparison.verdict.value}. Offline echo transport only: "
+                f"{comparison.reversal_condition}"
+            )
     return tuple(
         row.model_copy(update={"measured_effect": effects[row.node_name]})
         if row.node_name in effects
@@ -506,9 +663,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--clock", default=None, help="label of the injected clock")
     parser.add_argument(
         "--mode",
-        choices=("ablation", "m3"),
+        choices=("ablation", "m3", "f5"),
         default="ablation",
-        help="m3 also runs the retry_rewrite verdict and per-strategy corpus ablation",
+        help=(
+            "m3 runs the retry_rewrite verdict and per-strategy corpus ablation; "
+            "f5 measures clarify, multihop and checkpoint_followup"
+        ),
     )
     args = parser.parse_args(argv)
 
@@ -548,6 +708,59 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.feedback is not None:
         # Enforce the provenance label in production, not just in tests (L1/L5).
         backend_label = feedback_backend_label(backend_label)
+    if args.mode == "f5":
+        if factory is None or args.feedback is None:
+            raise RuntimeError("f5 mode requires --pipeline-factory and --feedback (L1/L5)")
+        measured = run_f5_comparisons(
+            golden,
+            registry,
+            factory,
+            top_k=args.top_k,
+            backend=backend_label,
+            corpus=args.corpus or registry.registry_id,
+            clock=args.clock or "FakeClock(2026-01-01T00:00:00+00:00)",
+        )
+        for comparison in measured.nodes.values():
+            ablation.write_node_comparison(comparison, args.reports)
+        results = run_ablation_suite(
+            golden,
+            registry,
+            args.reports,
+            top_k=args.top_k,
+            run_id=args.run_id,
+            backend=backend_label,
+            corpus=args.corpus,
+            clock_label=args.clock,
+            pipeline_factory=factory,
+        )
+        ablation.write_latest(
+            results,
+            args.reports,
+            measured_l16_rows(golden, registry, results, nodes=measured.nodes),
+        )
+        baseline_path = args.baseline or Path("eval/golden/baseline-feedback.json")
+        baseline = load_baseline(baseline_path)
+        gate_result = next(
+            (item for item in results if item.context.variant_name == DEFAULT_VARIANT.name), None
+        )
+        if gate_result is None:
+            _LOG.error("eval.gate.failed", reason="default variant not in matrix")
+            return 1
+        try:
+            report = assert_no_regression(gate_result, baseline)
+        except RegressionError as exc:
+            _LOG.error("eval.gate.failed", failures=exc.context.get("failures", []))
+            return 1
+        _LOG.info(
+            "eval.f5.complete",
+            baseline_id=baseline.baseline_id,
+            failures=list(report.failures),
+            subset_rule=measured.subset.subset_rule,
+            verdicts={
+                node.value: comparison.verdict.value for node, comparison in measured.nodes.items()
+            },
+        )
+        return 0
     if args.mode == "m3":
         if factory is None:
             raise RuntimeError("m3 mode requires --pipeline-factory (L1/L3)")
