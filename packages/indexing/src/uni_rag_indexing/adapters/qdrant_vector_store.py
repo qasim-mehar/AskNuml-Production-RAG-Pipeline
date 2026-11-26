@@ -14,6 +14,7 @@ from datetime import datetime
 from typing import Any, NoReturn
 from urllib.parse import urlsplit
 
+from pydantic import ValidationError as PydanticValidationError
 from qdrant_client import QdrantClient, models
 
 from uni_rag_core import (
@@ -24,6 +25,9 @@ from uni_rag_core import (
     StorageError,
     VectorHit,
     get_logger,
+)
+from uni_rag_core import (
+    ValidationError as CoreValidationError,
 )
 from uni_rag_indexing.domain.filters import (
     Equals,
@@ -99,10 +103,17 @@ def _domain_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
     Strips the operational fields before validation; re-dumping through ``Chunk``
     retains every declared field (including metadata) and canonicalises the JSON
     form. Because ``Chunk`` forbids extras, a strip that misses a storage field
-    fails here instead of leaking into a retrieved hit.
+    fails here instead of leaking into a retrieved hit. Malformed stored data is
+    translated to the core typed error rather than leaking pydantic's exception.
     """
     clean = {key: value for key, value in payload.items() if key not in OPERATIONAL_FIELDS}
-    return Chunk.model_validate(clean).model_dump(mode="json")
+    try:
+        return Chunk.model_validate(clean).model_dump(mode="json")
+    except PydanticValidationError as exc:
+        raise CoreValidationError(
+            "malformed stored Qdrant payload is not a valid Chunk",
+            context={"chunk_id": payload.get("chunk_id"), "errors": exc.errors()},
+        ) from exc
 
 
 def _to_hit(payload: Mapping[str, Any] | None, *, score: float) -> VectorHit:
