@@ -2,10 +2,11 @@
 
 This module is deliberately *outside* ``uni_rag_eval``: the shipped eval package
 imports only ``uni_rag_core``. It composes Lane E's **public**
-``RetrievalPipeline`` from core ports and real-but-offline adapters, setting the
-``retry_rewrite_enabled`` flag from the injected ``Variant``. It never imports a
-graph node or the rewrite service, so Lane F measures the node through the
-public pipeline boundary only (L14/L16).
+``RetrievalPipeline`` from core ports and real-but-offline adapters. E3 removed
+the ``retry_rewrite`` node after its zero-gain L16 verdict; the
+``retry_rewrite_enabled`` / ``retry_rewrite_iterations`` constructor flags are
+retained dormant and no node is live. This module imports no graph node or
+rewrite service (L14/L16). Reversal requires the parked live-transport re-run.
 
 ADR 0010: Lane D's boundary strip has not merged yet. This composition applies
 the equivalent in-memory strip at the ``VectorStore`` port and labels the
@@ -128,9 +129,9 @@ def _settings() -> Settings:
 def build_pipeline(variant: Variant):
     """Return a fresh ``Query -> Answer`` callable for one ablation variant.
 
-    The only variant-dependent behaviour is the injected ablation axes and the
-    ``retry_rewrite`` flag; the same offline corpus, clock and adapters are used
-    for every run, so an on/off pair isolates the node (L1/L4).
+    The only variant-dependent behaviour is the injected ablation axes; the
+    ``retry_rewrite`` constructor flags stay dormant after E3's removal. The
+    same offline corpus, clock and adapters are used for every run (L1/L4).
     """
     registry = _registry()
     if variant.corpus_strategy == INTEGRATED_CHUNKING:
@@ -159,6 +160,7 @@ def build_pipeline(variant: Variant):
         search_mode=RetrievalSearchMode(variant.search_mode.value),
         rerank_enabled=variant.rerank,
         freshness_boost_enabled=variant.freshness_boost,
+        # Dormant constructor flags only: the node itself was removed in E3.
         retry_rewrite_enabled=variant.retry_rewrite,
         retry_rewrite_iterations=1,
     ).run

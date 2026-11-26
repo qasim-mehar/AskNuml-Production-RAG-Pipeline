@@ -67,7 +67,8 @@ def test_one_table_pair_per_variant_plus_summary(tmp_path: Path) -> None:
     assert "not a quality claim" in summary
     for name in ("route", "filter", "search", "rerank", "abstain", "answer"):
         assert f"| {name} |" in summary
-    assert summary.count("| awaiting measurement |") == 4
+    assert summary.count("| awaiting measurement |") == 3
+    assert "Removed after E3" in summary
 
 
 def test_variant_matrix_uses_published_strategies_and_has_twelve_variants() -> None:
@@ -93,7 +94,12 @@ def test_l16_rows_carry_lane_e_purposes_and_only_measured_linear_effects() -> No
         "multihop",
         "checkpoint_followup",
     ]
-    measured = [row for row in LANE_E_NODE_ROWS if row.measured_effect != "awaiting measurement"]
+    linear_names = {"route", "filter", "search", "rerank", "abstain", "answer"}
+    measured = [
+        row
+        for row in LANE_E_NODE_ROWS
+        if row.node_name in linear_names and row.measured_effect != "awaiting measurement"
+    ]
     awaiting = [row for row in LANE_E_NODE_ROWS if row.measured_effect == "awaiting measurement"]
     assert [row.node_name for row in measured] == [
         "route",
@@ -104,11 +110,14 @@ def test_l16_rows_carry_lane_e_purposes_and_only_measured_linear_effects() -> No
         "answer",
     ]
     assert [row.node_name for row in awaiting] == [
-        "retry_rewrite",
         "clarify",
         "multihop",
         "checkpoint_followup",
     ]
+    retry_row = next(row for row in LANE_E_NODE_ROWS if row.node_name == "retry_rewrite")
+    assert retry_row.measured_effect.startswith("Removed after E3")
+    assert "dormant flags" in retry_row.measured_effect
+    assert "live-transport re-run" in retry_row.measured_effect
     assert all(row.required_eval_row for row in LANE_E_NODE_ROWS)
 
 
@@ -136,9 +145,10 @@ def test_l16_linear_effects_are_computed_from_the_measurements(tmp_path: Path) -
     assert f"{default.overall.abstention_precision:.4f}" in effects["abstain"]
     assert f"{default.overall.faithfulness:.4f}" in effects["answer"]
     assert f"{default.overall.citation_resolution:.4f}" in effects["answer"]
+    assert "Removed after E3" in effects["retry_rewrite"]
     assert all(
         effects[name] == "awaiting measurement"
-        for name in ("retry_rewrite", "clarify", "multihop", "checkpoint_followup")
+        for name in ("clarify", "multihop", "checkpoint_followup")
     )
 
 

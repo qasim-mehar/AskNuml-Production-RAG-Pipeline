@@ -1,0 +1,499 @@
+{
+  "schema_version": 1,
+  "golden_id": "curated-30-plus-feedback-6-v1",
+  "description": "30 curated questions plus 6 labelled feedback-derived rows from the offline fixture transcript (2 per language). NOT real user feedback: the feedback route persists nothing (ADR 0009) and real ingestion is parked.",
+  "records": [
+    {
+      "id": "g01",
+      "language": "en",
+      "query": "Who is the instructor for CS-101?",
+      "expected_filters": {
+        "doc_id": "doc-cs101-outline"
+      },
+      "expected_chunk_ids": [
+        "doc-cs101-outline::c01"
+      ],
+      "expected_answer_gist": "Dr. Ayesha Khan",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g02",
+      "language": "en",
+      "query": "How many credits is CS-101 worth?",
+      "expected_filters": {
+        "doc_id": "doc-cs101-outline"
+      },
+      "expected_chunk_ids": [
+        "doc-cs101-outline::c01"
+      ],
+      "expected_answer_gist": "4 credits",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g03",
+      "language": "en",
+      "query": "When is the CS-101 midterm exam?",
+      "expected_filters": {
+        "doc_id": "doc-announcements-2026"
+      },
+      "expected_chunk_ids": [
+        "doc-announcements-2026::c01"
+      ],
+      "expected_answer_gist": "October 17, 2026",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g04",
+      "language": "en",
+      "query": "What are the research interests of the computer science faculty?",
+      "expected_filters": {
+        "doc_id": "doc-faculty-directory"
+      },
+      "expected_chunk_ids": [
+        "doc-faculty-directory::c01"
+      ],
+      "expected_answer_gist": "information retrieval and NLP",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g05",
+      "language": "en",
+      "query": "What are the learning outcomes of CS-101?",
+      "expected_filters": {
+        "doc_id": "doc-cs101-outline"
+      },
+      "expected_chunk_ids": [
+        "doc-cs101-outline::c02"
+      ],
+      "expected_answer_gist": "Write and debug programs in Python",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g06",
+      "language": "en",
+      "query": "When does new student orientation begin?",
+      "expected_filters": {
+        "doc_id": "doc-announcements-2026"
+      },
+      "expected_chunk_ids": [
+        "doc-announcements-2026::c03"
+      ],
+      "expected_answer_gist": "August 24, 2026",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g07",
+      "language": "en",
+      "query": "Which associate professor researches distributed systems?",
+      "expected_filters": {
+        "doc_id": "doc-faculty-directory"
+      },
+      "expected_chunk_ids": [
+        "doc-faculty-directory::c02"
+      ],
+      "expected_answer_gist": "Dr. Muhammad Ali",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g08",
+      "language": "en",
+      "query": "How are grades in CS-101 determined?",
+      "expected_filters": {
+        "doc_id": "doc-cs101-outline"
+      },
+      "expected_chunk_ids": [
+        "doc-cs101-outline::c03"
+      ],
+      "expected_answer_gist": "assignments, a midterm exam, and a final project",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g09",
+      "language": "en",
+      "query": "What is the department contact email?",
+      "expected_filters": {
+        "doc_id": "doc-faculty-directory"
+      },
+      "expected_chunk_ids": [
+        "doc-faculty-directory::c03"
+      ],
+      "expected_answer_gist": "cs@example.edu.pk",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g10",
+      "language": "en",
+      "query": "What is the tuition fee for CS-101?",
+      "expected_filters": {},
+      "expected_chunk_ids": [],
+      "expected_answer_gist": "No fixture document states a tuition fee",
+      "expected_abstain": true,
+      "provenance": null
+    },
+    {
+      "id": "g11",
+      "language": "ur",
+      "query": "CS-101 کے انسٹرکٹر کون ہیں؟",
+      "expected_filters": {
+        "doc_id": "doc-cs101-outline"
+      },
+      "expected_chunk_ids": [
+        "doc-cs101-outline::c01"
+      ],
+      "expected_answer_gist": "ڈاکٹر عائشہ خان",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g12",
+      "language": "ur",
+      "query": "CS-101 کتنے کریڈٹس کا کورس ہے؟",
+      "expected_filters": {
+        "doc_id": "doc-cs101-outline"
+      },
+      "expected_chunk_ids": [
+        "doc-cs101-outline::c01"
+      ],
+      "expected_answer_gist": "4 کریڈٹس",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g13",
+      "language": "ur",
+      "query": "CS-101 کا مڈ ٹرم امتحان کب ہے؟",
+      "expected_filters": {
+        "doc_id": "doc-announcements-2026"
+      },
+      "expected_chunk_ids": [
+        "doc-announcements-2026::c01"
+      ],
+      "expected_answer_gist": "17 اکتوبر 2026",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g14",
+      "language": "ur",
+      "query": "نئے طلبہ کی اورینٹیشن کب شروع ہوتی ہے؟",
+      "expected_filters": {
+        "doc_id": "doc-announcements-2026"
+      },
+      "expected_chunk_ids": [
+        "doc-announcements-2026::c03"
+      ],
+      "expected_answer_gist": "24 اگست 2026",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g15",
+      "language": "ur",
+      "query": "کمپیوٹر سائنس فیکلٹی کے تحقیقی شعبے کیا ہیں؟",
+      "expected_filters": {
+        "doc_id": "doc-faculty-directory"
+      },
+      "expected_chunk_ids": [
+        "doc-faculty-directory::c01"
+      ],
+      "expected_answer_gist": "انفارمیشن ریٹریول اور NLP",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g16",
+      "language": "ur",
+      "query": "CS-101 کے سیکھنے کے نتائج کیا ہیں؟",
+      "expected_filters": {
+        "doc_id": "doc-cs101-outline"
+      },
+      "expected_chunk_ids": [
+        "doc-cs101-outline::c02"
+      ],
+      "expected_answer_gist": "پائتھون میں پروگرام لکھنا اور ڈیبگ کرنا",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g17",
+      "language": "ur",
+      "query": "ایسوسی ایٹ پروفیسر کون ہیں؟",
+      "expected_filters": {
+        "doc_id": "doc-faculty-directory"
+      },
+      "expected_chunk_ids": [
+        "doc-faculty-directory::c02"
+      ],
+      "expected_answer_gist": "ڈاکٹر محمد علی",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g18",
+      "language": "ur",
+      "query": "CS-101 میں گریڈنگ کیسے کی جاتی ہے؟",
+      "expected_filters": {
+        "doc_id": "doc-cs101-outline"
+      },
+      "expected_chunk_ids": [
+        "doc-cs101-outline::c03"
+      ],
+      "expected_answer_gist": "اسائنمنٹس، مڈ ٹرم اور فائنل پروجیکٹ",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g19",
+      "language": "ur",
+      "query": "ڈیپارٹمنٹ کا ای میل ایڈریس کیا ہے؟",
+      "expected_filters": {
+        "doc_id": "doc-faculty-directory"
+      },
+      "expected_chunk_ids": [
+        "doc-faculty-directory::c03"
+      ],
+      "expected_answer_gist": "cs@example.edu.pk",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g20",
+      "language": "ur",
+      "query": "CS-101 کی فیس کتنی ہے؟",
+      "expected_filters": {},
+      "expected_chunk_ids": [],
+      "expected_answer_gist": "فکسچر دستاویزات میں فیس کا ذکر نہیں",
+      "expected_abstain": true,
+      "provenance": null
+    },
+    {
+      "id": "g21",
+      "language": "roman_urdu",
+      "query": "CS-101 ka instructor kaun hai?",
+      "expected_filters": {
+        "doc_id": "doc-cs101-outline"
+      },
+      "expected_chunk_ids": [
+        "doc-cs101-outline::c01"
+      ],
+      "expected_answer_gist": "Dr. Ayesha Khan",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g22",
+      "language": "roman_urdu",
+      "query": "CS-101 ka midterm kab hai?",
+      "expected_filters": {
+        "doc_id": "doc-announcements-2026"
+      },
+      "expected_chunk_ids": [
+        "doc-announcements-2026::c01"
+      ],
+      "expected_answer_gist": "17 October 2026",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g23",
+      "language": "roman_urdu",
+      "query": "CS-101 kitne credits ka course hai?",
+      "expected_filters": {
+        "doc_id": "doc-cs101-outline"
+      },
+      "expected_chunk_ids": [
+        "doc-cs101-outline::c01"
+      ],
+      "expected_answer_gist": "4 credits",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g24",
+      "language": "roman_urdu",
+      "query": "Naye students ki orientation kab shuru hoti hai?",
+      "expected_filters": {
+        "doc_id": "doc-announcements-2026"
+      },
+      "expected_chunk_ids": [
+        "doc-announcements-2026::c03"
+      ],
+      "expected_answer_gist": "24 August 2026",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g25",
+      "language": "roman_urdu",
+      "query": "CS faculty ke research interests kya hain?",
+      "expected_filters": {
+        "doc_id": "doc-faculty-directory"
+      },
+      "expected_chunk_ids": [
+        "doc-faculty-directory::c01"
+      ],
+      "expected_answer_gist": "information retrieval aur NLP",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g26",
+      "language": "roman_urdu",
+      "query": "CS-101 ke learning outcomes kya hain?",
+      "expected_filters": {
+        "doc_id": "doc-cs101-outline"
+      },
+      "expected_chunk_ids": [
+        "doc-cs101-outline::c02"
+      ],
+      "expected_answer_gist": "Python mein program likhna aur debug karna",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g27",
+      "language": "roman_urdu",
+      "query": "Associate professor kaun hain?",
+      "expected_filters": {
+        "doc_id": "doc-faculty-directory"
+      },
+      "expected_chunk_ids": [
+        "doc-faculty-directory::c02"
+      ],
+      "expected_answer_gist": "Dr. Muhammad Ali",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g28",
+      "language": "roman_urdu",
+      "query": "CS-101 ki grading kaise hoti hai?",
+      "expected_filters": {
+        "doc_id": "doc-cs101-outline"
+      },
+      "expected_chunk_ids": [
+        "doc-cs101-outline::c03"
+      ],
+      "expected_answer_gist": "assignments, midterm aur final project",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g29",
+      "language": "roman_urdu",
+      "query": "Department ka contact email kya hai?",
+      "expected_filters": {
+        "doc_id": "doc-faculty-directory"
+      },
+      "expected_chunk_ids": [
+        "doc-faculty-directory::c03"
+      ],
+      "expected_answer_gist": "cs@example.edu.pk",
+      "expected_abstain": false,
+      "provenance": null
+    },
+    {
+      "id": "g30",
+      "language": "roman_urdu",
+      "query": "CS-101 ki fee kitni hai?",
+      "expected_filters": {},
+      "expected_chunk_ids": [],
+      "expected_answer_gist": "Fixture documents mein fee ka zikr nahi",
+      "expected_abstain": true,
+      "provenance": null
+    },
+    {
+      "id": "g-fb-en-01",
+      "language": "en",
+      "query": "Who teaches CS-101 in Fall 2026?",
+      "expected_filters": {
+        "doc_id": "doc-cs101-outline"
+      },
+      "expected_chunk_ids": [
+        "doc-cs101-outline::c01"
+      ],
+      "expected_answer_gist": "Dr. Ayesha Khan",
+      "expected_abstain": false,
+      "provenance": "feedback-derived|source=fixture-transcript|live_feedback=False"
+    },
+    {
+      "id": "g-fb-en-02",
+      "language": "en",
+      "query": "How late is the library open during exam week?",
+      "expected_filters": {
+        "doc_id": "doc-announcements-2026"
+      },
+      "expected_chunk_ids": [
+        "doc-announcements-2026::c02"
+      ],
+      "expected_answer_gist": "until midnight",
+      "expected_abstain": false,
+      "provenance": "feedback-derived|source=fixture-transcript|live_feedback=False"
+    },
+    {
+      "id": "g-fb-ur-01",
+      "language": "ur",
+      "query": "CS-101 کے انسٹرکٹر کا نام کیا ہے؟",
+      "expected_filters": {
+        "doc_id": "doc-cs101-outline"
+      },
+      "expected_chunk_ids": [
+        "doc-cs101-outline::c01"
+      ],
+      "expected_answer_gist": "ڈاکٹر عائشہ خان",
+      "expected_abstain": false,
+      "provenance": "feedback-derived|source=fixture-transcript|live_feedback=False"
+    },
+    {
+      "id": "g-fb-ur-02",
+      "language": "ur",
+      "query": "امتحان ہفتے کے دوران لائبریری کب تک کھلی رہتی ہے؟",
+      "expected_filters": {
+        "doc_id": "doc-announcements-2026"
+      },
+      "expected_chunk_ids": [
+        "doc-announcements-2026::c02"
+      ],
+      "expected_answer_gist": "آدھی رات تک",
+      "expected_abstain": false,
+      "provenance": "feedback-derived|source=fixture-transcript|live_feedback=False"
+    },
+    {
+      "id": "g-fb-ru-01",
+      "language": "roman_urdu",
+      "query": "CS-101 ka semester kya hai?",
+      "expected_filters": {
+        "doc_id": "doc-cs101-outline"
+      },
+      "expected_chunk_ids": [
+        "doc-cs101-outline::c01"
+      ],
+      "expected_answer_gist": "Fall 2026",
+      "expected_abstain": false,
+      "provenance": "feedback-derived|source=fixture-transcript|live_feedback=False"
+    },
+    {
+      "id": "g-fb-ru-02",
+      "language": "roman_urdu",
+      "query": "Library exam week mein kitni der khuli rehti hai?",
+      "expected_filters": {
+        "doc_id": "doc-announcements-2026"
+      },
+      "expected_chunk_ids": [
+        "doc-announcements-2026::c02"
+      ],
+      "expected_answer_gist": "midnight tak",
+      "expected_abstain": false,
+      "provenance": "feedback-derived|source=fixture-transcript|live_feedback=False"
+    }
+  ]
+}
