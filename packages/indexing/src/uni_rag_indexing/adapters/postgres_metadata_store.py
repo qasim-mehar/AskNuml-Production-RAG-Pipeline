@@ -284,7 +284,7 @@ class PostgresMetadataStore:
         """Persist a parsed record; a replay with different provenance conflicts."""
         crawled = ensure_aware(record.last_crawled, field="last_crawled")
         stamped = ensure_aware(indexed_at, field="indexed_at")
-        values = {
+        record_values = {
             "doc_id": record.doc_id,
             "source_url": record.source_url,
             "page": record.page,
@@ -301,9 +301,8 @@ class PostgresMetadataStore:
             "term": record.term,
             "exam_type": record.exam_type,
             "department": record.department,
-            "ordinal": ordinal,
-            "indexed_at": stamped,
         }
+        values = {**record_values, "ordinal": ordinal, "indexed_at": stamped}
         try:
             with self._engine.begin() as connection:
                 row = connection.execute(
@@ -317,7 +316,7 @@ class PostgresMetadataStore:
                             question_id=record.question_id, **values
                         )
                     )
-                elif _paper_record_values(row) != values:
+                elif _paper_record_values(row) != record_values:
                     raise StorageConflictError(
                         "question_id already stored with a different parsed record",
                         context={"question_id": record.question_id},
@@ -377,6 +376,11 @@ def _aware(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
+def _utc_aware(value: datetime) -> datetime:
+    """Convert a DB timestamp to UTC so JSON round-trips byte-faithfully (L5)."""
+    return _aware(value).astimezone(UTC)
+
+
 def _to_record(row: Any) -> ChunkRecord:
     return ChunkRecord(
         chunk_id=row.chunk_id,
@@ -392,13 +396,15 @@ def _to_record(row: Any) -> ChunkRecord:
 
 def _paper_record_values(row: Any) -> dict[str, Any]:
     """Return the persisted columns of a parsed record in upsert-comparable form."""
+    # ``ordinal`` and ``indexed_at`` are write-time bookkeeping, not part of the
+    # frozen record: replaying the same record must remain a no-op (L4).
     return {
         "doc_id": row.doc_id,
         "source_url": row.source_url,
         "page": row.page,
         "question_number": row.question_number,
         "text": row.text,
-        "last_crawled": _aware(row.last_crawled),
+        "last_crawled": _utc_aware(row.last_crawled),
         "year": row.year,
         "subject": row.subject,
         "options_json": list(row.options_json or ()),
@@ -407,8 +413,6 @@ def _paper_record_values(row: Any) -> dict[str, Any]:
         "term": row.term,
         "exam_type": row.exam_type,
         "department": row.department,
-        "ordinal": row.ordinal,
-        "indexed_at": _aware(row.indexed_at),
     }
 
 
@@ -421,7 +425,7 @@ def _to_paper_record(row: Any) -> ParsedPaperRecord:
         page=row.page,
         question_number=row.question_number,
         text=row.text,
-        last_crawled=_aware(row.last_crawled),
+        last_crawled=_utc_aware(row.last_crawled),
         year=row.year,
         subject=row.subject,
         options=tuple(row.options_json or ()),

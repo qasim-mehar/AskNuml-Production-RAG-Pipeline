@@ -18,12 +18,13 @@ _DESCRIPTION = (
     "Find segmented past-paper questions by course code, year, term, exam type and "
     "department. Every supplied filter is combined with AND; an unmatched combination "
     'returns {"results": []} with HTTP 200 — never 404 and never a null record. '
-    "DATA SOURCE HONESTY: the route is real, but its records are fixture-backed by a "
-    "deterministic fake PapersProvider on both backends. Parsed-record persistence is "
-    "parked pending a Lane 0 promotion ADR, so no real paper store is consulted (L1, L5). "
-    "Items are PastPaperQuestion records plus the fixture provider's frozen "
-    "`last_crawled` provenance timestamp; source URLs, pages and image references are "
-    "copied verbatim from that provider, never invented."
+    "DATA SOURCE HONESTY: records come from the parsed-record store (ADR 0011) through "
+    "the injected PapersProvider port — no fixture lookup or crawl happens at request "
+    "time. Fake mode seeds that store from deterministic fixture-derived parsed "
+    "records; live mode reads Lane D's persisted Postgres table. Live crawling and "
+    "parsing stay parked. Each item is a PastPaperQuestion plus the `last_crawled` "
+    "timestamp frozen when it was stored; source URLs, pages and image references are "
+    "copied verbatim from the stored record, never invented (L1, L5)."
 )
 
 router = APIRouter(
@@ -60,7 +61,7 @@ def find_papers(
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> PaperSearchResult:
-    """Return fixture-backed records matching all supplied filters (L4, L5, L7)."""
+    """Return stored records matching all supplied filters (L4, L5, L7)."""
     filters = PaperFilters(
         course_code=course_code or None,
         year=year,

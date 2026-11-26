@@ -5,12 +5,16 @@ will implement :class:`AnswerService` at integration. Ports stay synchronous;
 adapters may be async internally (AGENT.md §4).
 """
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol, runtime_checkable
 
 from uni_rag_core import Answer, ObjectStore, PastPaperQuestion, Query
+from uni_rag_indexing.domain.store_types import (
+    PaperRecordFilters,
+    ParsedPaperRecord,
+)
 
 
 @runtime_checkable
@@ -63,7 +67,26 @@ class PapersProvider(Protocol):
     """Finds past-paper records behind an API-local port (L3)."""
 
     def find(self, filters: PaperFilters) -> list[PaperRecord]:
-        """Return fixture records matching every supplied filter (AND, L4/L5)."""
+        """Return stored records matching every supplied filter (AND, L4/L5)."""
+        ...
+
+
+@runtime_checkable
+class PaperRecordStore(Protocol):
+    """API-local view of Lane D's parsed-record store (ADR 0011, L3/L14).
+
+    The domain-local methods stay in ``uni_rag_indexing``; this narrow Protocol
+    is only what the API composes and injects. No core contract changes.
+    """
+
+    def upsert_paper_record(
+        self, record: ParsedPaperRecord, *, ordinal: int, indexed_at: datetime
+    ) -> None:
+        """Persist a parsed record with its provenance frozen at write time."""
+        ...
+
+    def find_paper_records(self, filters: PaperRecordFilters) -> Sequence[ParsedPaperRecord]:
+        """Return matching parsed records in stable ordinal order, then paginate."""
         ...
 
 

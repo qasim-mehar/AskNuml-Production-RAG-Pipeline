@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -145,6 +146,9 @@ def test_parsed_paper_record_round_trip_and_immutable_provenance(
     record = ParsedPaperRecord.from_question(question(), last_crawled=FIXED_TIME)
     store.upsert_paper_record(record, ordinal=1, indexed_at=FIXED_TIME)
     store.upsert_paper_record(record, ordinal=1, indexed_at=FIXED_TIME)
+    # Write-time bookkeeping is not part of the record: a replay with a new
+    # ordinal/indexed_at is still an idempotent no-op on both store backends.
+    store.upsert_paper_record(record, ordinal=99, indexed_at=FIXED_TIME + timedelta(days=1))
 
     found = store.find_paper_records(PaperRecordFilters(course_code="CS-101", limit=5))
     assert found == (record,)
@@ -195,6 +199,7 @@ def test_in_memory_paper_record_store_matches_the_relational_semantics(
     second = replace(base, question_id="q-2", course_code="MATH-101")
     metadata_memory.upsert_paper_record(base, ordinal=1, indexed_at=FIXED_TIME)
     metadata_memory.upsert_paper_record(second, ordinal=2, indexed_at=FIXED_TIME)
+    metadata_memory.upsert_paper_record(base, ordinal=99, indexed_at=FIXED_TIME + timedelta(days=1))
 
     assert metadata_memory.find_paper_records(PaperRecordFilters()) == (base, second)
     assert [

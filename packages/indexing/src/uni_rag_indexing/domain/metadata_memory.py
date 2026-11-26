@@ -111,11 +111,13 @@ class InMemoryMetadataStore:
             record, last_crawled=ensure_aware(record.last_crawled, field="last_crawled")
         )
         existing = self._paper_records.get(frozen.question_id)
-        if existing is not None and existing[0] != frozen:
-            raise StorageConflictError(
-                "question_id already stored with a different parsed record",
-                context={"question_id": frozen.question_id},
-            )
+        if existing is not None:
+            if existing[0] != frozen:
+                raise StorageConflictError(
+                    "question_id already stored with a different parsed record",
+                    context={"question_id": frozen.question_id},
+                )
+            return  # an identical replay keeps the original ordinal (L4)
         self._paper_records[frozen.question_id] = (frozen, ordinal)
 
     def find_paper_records(self, filters: PaperRecordFilters) -> Sequence[ParsedPaperRecord]:
