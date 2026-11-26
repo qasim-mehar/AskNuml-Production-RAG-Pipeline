@@ -3,7 +3,8 @@
 Implemented entries map to plain ``service`` functions, so node logic stays in
 ``service`` (L9, L15). Future control-flow nodes are documented with a named
 purpose and the eval row they must earn before they are added. No node is live:
-``retry_rewrite`` was removed after its L16 verdict showed zero gain.
+``retry_rewrite``, ``clarify``, ``multihop`` and ``checkpoint_followup`` were
+removed after their L16 verdicts showed zero gain.
 """
 
 from __future__ import annotations
@@ -65,21 +66,6 @@ NODE_SPECS: dict[str, NodeSpec] = {
         purpose="Synthesize a cited answer whose data block is delimited and labelled.",
         eval_row="Faithfulness and citation-resolution rate on mini-golden.json.",
         handler=service.synthesize_answer,
-    ),
-    "clarify": NodeSpec(
-        name="clarify",
-        purpose="Ask the student for a missing required filter instead of guessing.",
-        eval_row="Clarification precision after filter-extraction errors; no needless clarifications.",
-    ),
-    "multihop": NodeSpec(
-        name="multihop",
-        purpose="Answer a question that must reference evidence from a second document.",
-        eval_row="Faithfulness on a two-document multi-hop fixture.",
-    ),
-    "checkpoint_followup": NodeSpec(
-        name="checkpoint_followup",
-        purpose="Carry prior turns and citations into a checkpointed follow-up.",
-        eval_row="Citation continuity and faithfulness on a follow-up fixture.",
     ),
 }
 
