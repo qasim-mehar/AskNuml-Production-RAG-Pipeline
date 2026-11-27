@@ -207,10 +207,10 @@ DEFAULT_VARIANT: Variant = build_variant(SearchMode.HYBRID, True, False)
 
 
 # Lane E's handoff (graph/README.md and graph/nodes.py) supplies the purpose and
-# required eval row verbatim. Only the six linear stages have a measured effect;
-# retry_rewrite moved from measured to removed in E3 and the three remaining
-# control-flow nodes stay awaiting measurement (L16). The six linear effects are
-# filled from the measured ablation by service.run.measured_l16_rows.
+# required eval row verbatim. The six linear stages carry measured effects filled
+# from the ablation by service.run.measured_l16_rows; retry_rewrite moved from
+# measured to removed in E3 and the three remaining control-flow nodes moved from
+# measured to removed in E5 (L16). Removed rows are never recomputed.
 LANE_E_NODE_ROWS: tuple[NodePurposeRow, ...] = (
     NodePurposeRow(
         node_name="route",
@@ -270,18 +270,37 @@ LANE_E_NODE_ROWS: tuple[NodePurposeRow, ...] = (
         node_name="clarify",
         purpose="Ask the student for a missing required filter instead of guessing.",
         required_eval_row="Clarification precision after filter-extraction errors; no needless clarifications.",
-        measured_effect="awaiting measurement",
+        measured_effect=(
+            "Removed after E5 (node deleted per L16 zero-gain verdict; "  # E5 handoff row text
+            "weak-row recall@5 en 7 / ur 11 / roman_urdu 6, n=24 incl. 6 feedback-derived "
+            "rows = +0.000000 on en/ur/roman_urdu/overall); no substitute node added. "
+            "Reversal requires the parked live-transport re-run showing a gain on this "
+            "node's row (live transport supplying a parsed missing filter, CLARIFY_DOC_ID)."
+        ),
     ),
     NodePurposeRow(
         node_name="multihop",
         purpose="Answer a question that must reference evidence from a second document.",
         required_eval_row="Faithfulness on a two-document multi-hop fixture.",
-        measured_effect="awaiting measurement",
+        measured_effect=(
+            "Removed after E5 (node deleted per L16 zero-gain verdict; "  # E5 handoff row text
+            "weak-row recall@5 en 7 / ur 11 / roman_urdu 6, n=24 incl. 6 feedback-derived "
+            "rows = +0.000000 on en/ur/roman_urdu/overall); no substitute node added. "
+            "Reversal requires the parked live-transport re-run showing a gain on this "
+            "node's row (live transport supplying a second-document query, MULTIHOP_QUERY)."
+        ),
     ),
     NodePurposeRow(
         node_name="checkpoint_followup",
         purpose="Carry prior turns and citations into a checkpointed follow-up.",
         required_eval_row="Citation continuity and faithfulness on a follow-up fixture.",
-        measured_effect="awaiting measurement",
+        measured_effect=(
+            "Removed after E5 (node deleted per L16 zero-gain verdict; "  # E5 handoff row text
+            "weak-row recall@5 en 7 / ur 11 / roman_urdu 6, n=24 incl. 6 feedback-derived "
+            "rows = +0.000000 on en/ur/roman_urdu/overall); no substitute node added. "
+            "Reversal requires the parked live-transport re-run showing a gain on this "
+            "node's row (live transport supplying carried citation ids, FOLLOWUP_CITATIONS). "
+            "LangGraph dependency stays CLOSED as not adopted."
+        ),
     ),
 )

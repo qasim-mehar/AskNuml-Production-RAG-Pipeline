@@ -45,7 +45,7 @@
   flags stay dormant; reversal requires the parked live-transport re-run). F5 measured
   the three remaining control-flow nodes (`clarify`, `multihop`, `checkpoint_followup`);
   all three rows moved from `awaiting measurement` to measured zero-gain `REMOVE`
-  verdicts, so Lane E needs removal prompts next milestone (L16).
+  verdicts, and E5 then removed the nodes (measured → removed, L16).
 - `reports/retry-rewrite-comparison.md` / `.csv` — the historical F3 measurement of
   recall@5 on the weak-evidence subset with `retry_rewrite_enabled` off (single pass) and
   on (cap 1), per language and overall, with the KEEP/REMOVE verdict. E3 removed the node;

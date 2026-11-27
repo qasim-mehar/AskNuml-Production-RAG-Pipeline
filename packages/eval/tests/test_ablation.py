@@ -67,7 +67,8 @@ def test_one_table_pair_per_variant_plus_summary(tmp_path: Path) -> None:
     assert "not a quality claim" in summary
     for name in ("route", "filter", "search", "rerank", "abstain", "answer"):
         assert f"| {name} |" in summary
-    assert summary.count("| awaiting measurement |") == 3
+    assert "| awaiting measurement |" not in summary
+    assert summary.count("| Removed after E5 ") == 3
     assert "Removed after E3" in summary
 
 
@@ -80,7 +81,7 @@ def test_variant_matrix_uses_published_strategies_and_has_twelve_variants() -> N
     assert {v.name for v in matrix} == {v.name for v in variant_matrix((INTEGRATED_CHUNKING,))}
 
 
-def test_l16_rows_carry_lane_e_purposes_and_only_measured_linear_effects() -> None:
+def test_l16_rows_carry_lane_e_purposes_and_removed_flow_nodes() -> None:
     names = [row.node_name for row in LANE_E_NODE_ROWS]
     assert names == [
         "route",
@@ -95,12 +96,8 @@ def test_l16_rows_carry_lane_e_purposes_and_only_measured_linear_effects() -> No
         "checkpoint_followup",
     ]
     linear_names = {"route", "filter", "search", "rerank", "abstain", "answer"}
-    measured = [
-        row
-        for row in LANE_E_NODE_ROWS
-        if row.node_name in linear_names and row.measured_effect != "awaiting measurement"
-    ]
-    awaiting = [row for row in LANE_E_NODE_ROWS if row.measured_effect == "awaiting measurement"]
+    measured = [row for row in LANE_E_NODE_ROWS if row.node_name in linear_names]
+    removed = [row for row in LANE_E_NODE_ROWS if row.measured_effect.startswith("Removed after")]
     assert [row.node_name for row in measured] == [
         "route",
         "filter",
@@ -109,15 +106,32 @@ def test_l16_rows_carry_lane_e_purposes_and_only_measured_linear_effects() -> No
         "abstain",
         "answer",
     ]
-    assert [row.node_name for row in awaiting] == [
+    assert [row.node_name for row in removed] == [
+        "retry_rewrite",
         "clarify",
         "multihop",
         "checkpoint_followup",
     ]
+    assert all("awaiting measurement" not in row.measured_effect for row in LANE_E_NODE_ROWS)
     retry_row = next(row for row in LANE_E_NODE_ROWS if row.node_name == "retry_rewrite")
     assert retry_row.measured_effect.startswith("Removed after E3")
     assert "dormant flags" in retry_row.measured_effect
     assert "live-transport re-run" in retry_row.measured_effect
+    e5_rows = {
+        row.node_name: row.measured_effect for row in removed if row.node_name != "retry_rewrite"
+    }
+    for name, token in (
+        ("clarify", "CLARIFY_DOC_ID"),
+        ("multihop", "MULTIHOP_QUERY"),
+        ("checkpoint_followup", "FOLLOWUP_CITATIONS"),
+    ):
+        effect = e5_rows[name]
+        assert effect.startswith("Removed after E5")
+        assert "n=24 incl. 6 feedback-derived rows" in effect
+        assert "+0.000000" in effect
+        assert "no substitute node added" in effect
+        assert token in effect
+    assert "LangGraph dependency stays CLOSED as not adopted" in e5_rows["checkpoint_followup"]
     assert all(row.required_eval_row for row in LANE_E_NODE_ROWS)
 
 
@@ -146,10 +160,16 @@ def test_l16_linear_effects_are_computed_from_the_measurements(tmp_path: Path) -
     assert f"{default.overall.faithfulness:.4f}" in effects["answer"]
     assert f"{default.overall.citation_resolution:.4f}" in effects["answer"]
     assert "Removed after E3" in effects["retry_rewrite"]
-    assert all(
-        effects[name] == "awaiting measurement"
-        for name in ("clarify", "multihop", "checkpoint_followup")
-    )
+    handoff = {row.node_name: row.measured_effect for row in LANE_E_NODE_ROWS}
+    for name, token in (
+        ("clarify", "CLARIFY_DOC_ID"),
+        ("multihop", "MULTIHOP_QUERY"),
+        ("checkpoint_followup", "FOLLOWUP_CITATIONS"),
+    ):
+        assert effects[name] == handoff[name]  # removed rows are never recomputed
+        assert effects[name].startswith("Removed after E5")
+        assert "+0.000000" in effects[name]
+        assert token in effects[name]
 
 
 def test_ablation_reports_are_byte_identical_for_identical_inputs(tmp_path: Path) -> None:
