@@ -126,3 +126,37 @@ ADRs 0005–0009 (Lane 0 contracts wave).
 - [2026-11-27] Lane F: latent `--mode f5` recompute path in `packages/eval/src/uni_rag_eval/service/run.py` stays parked — `main()` passes `nodes=measured.nodes` into `measured_l16_rows` before `ablation.write_latest`, whose `if nodes:` branch still writes measured zero-gain text into the three control-flow rows, so a future `--mode f5` full-report regeneration could overwrite E5's pinned `Removed after E5` cells in `eval/reports/latest.md`. F6 pinned the E3/E5 removed rows in `LANE_E_NODE_ROWS` and added `assert effects[name] == handoff[name]  # removed rows are never recomputed` in `test_ablation.py`; the latent CLI path was deliberately left unchanged here (docs/row-status only, no harness semantics change). Any future regeneration must preserve those cells byte-identically (L1/L16).
 - [2026-11-27] Lane F: stale docstring at `packages/eval/src/uni_rag_eval/service/run.py:529` stays parked — `"""Fill measured L16 effects from data; leave unmeasured nodes awaiting (L16)."""` still describes `awaiting measurement` rows, but no L16 row is awaiting after E5/F6; the wording was left untouched in this wave (F-owned docs/row-status work only, no harness semantics change), to be retired with a harness follow-up.
 - [2026-11-27] Lane 0: F6 a3d9feb is the final implementation merge of the campaign — boards are append-only, no ADR promoted, no lane code edited, both pre-existing stashes untouched; no Docker or `make` binary on this host, so all gates ran via direct Makefile recipes. The two low notes above are parked, not fixed here.
+
+## Campaign close-out sweep (2026-11-27 — pipeline-mvp)
+
+This closes the parking lot for the campaign. Every line above is now
+dispositioned: `CARRY` enters phase 2; `DIE` closes the line with this campaign
+(including lines already closed earlier, re-recorded here as closed). `DIE` does
+not forbid later re-promotion by a new ADR under the rule at the top of this
+file. All verdicts below are dated 2026-11-27. The Source column names the
+dated line(s) above that each verdict settles; repeated lines are grouped only
+where verdict and reason are identical, and every bullet line above is covered.
+
+| Source line(s) | Verdict | One-line reason |
+| --- | --- | --- |
+| 2026-11-24 real crawl / real parse / live-crawl smoke / Crawl4AI / sitemap / crawl-state / MinerU real wiring / OCR beyond fixture / live-network parsing / real page scans / image renderer + live image proxy; 2026-11-25 and 2026-11-26 A–B reaffirmations | [2026-11-27][CARRY] | Phase-2 front door: real university documents are the input to every downstream lane. |
+| 2026-11-24 Lane F real feedback-to-golden, Lane G auth beyond stub, feedback persistence/golden/auth; 2026-11-25 wave-2 and 2026-11-26 reaffirmations | [2026-11-27][CARRY] | Only ADR 0009's local-only `202` echo exists; real ingestion and auth need persistence plus live transports. |
+| 2026-11-24 opt-in real-LLM faithfulness judge; 2026-11-25/26/27 `retry_rewrite` and three `clarify` / `multihop` / `checkpoint_followup` reversal lines (`CLARIFY_DOC_ID`, `MULTIHOP_QUERY`, `FOLLOWUP_CITATIONS`); 2026-11-26 every-live-* line (live parts split across these rows) | [2026-11-27][CARRY] | Reversal of each zero-gain `REMOVE` needs a live transport that actually supplies the missing filter, query or citations; offline echo rows cannot settle it. |
+| 2026-11-24/25/26 live-provider comparison lines | [2026-11-27][CARRY] | Opt-in eval run, never CI; provider parity is only contract-tested offline. |
+| 2026-11-25/26 compose/Docker absence lines | [2026-11-27][CARRY] | No Docker or `make` binary on this host; required for any live-* work. |
+| 2026-11-25/26 live-mode Qdrant probe lines (live run, not the URL nit) | [2026-11-27][CARRY] | URL mismatch retired by f709878; the round-trip run itself needs compose up. |
+| 2026-11-27 Lane F latent `--mode f5` recompute path in `run.py` | [2026-11-27][CARRY] | Small F-owned residual; any regeneration must preserve E5's removed cells byte-identically. |
+| 2026-11-27 Lane F stale `run.py:529` docstring | [2026-11-27][CARRY] | Small F-owned docs residual; retire with the harness follow-up. |
+| 2026-11-25 Lane G per-package `py.typed` (E's marker) | [2026-11-27][CARRY] | Small residual: D's marker shipped, E's is still absent after E3. |
+| 2026-11-25/26 Lane D nits — malformed-payload `ValidationError` and probe URL mismatch (2026-11-25 waves 4/5/6) | [2026-11-27][DIE] | Both retired by f709878 at LANE-0-MERGE-6. |
+| 2026-11-24 LangGraph-node dependency, 2026-11-25/26 dependency reaffirmations and checkpoint close | [2026-11-27][DIE] | Closed as not adopted; reopen only on a named node with a measured positive L16 gain needing real control flow. |
+| 2026-11-25 trio-merge blocker (`INTEGRATION-BLOCKER.md`, PROGRESS row 0) | [2026-11-27][DIE] | Resolved by MERGE-3 / fda5b4f: trio landed in order and the blocker file was deleted. |
+| 2026-11-24/25/26 parsed-record persistence promotion lines (Lane B 23/39, Lane G 76, checkpoint 90, reaffirmations) | [2026-11-27][DIE] | Promoted by ADR 0011 and shipped by Lane D, G4 and the H migration. |
+| 2026-11-24/25 document-level soft-delete method and nine first-class `Chunk` payload fields (ADR 0010 line) | [2026-11-27][DIE] | Settled by ADR 0010: fields stay in Qdrant storage for filter pushdown and are stripped at the adapter boundary; no core schema change. |
+| 2026-11-24/25 promoted-or-done lines — real embedding/LLM adapters (ADR 0002), UI beyond health page (ADR 0004), placeholder-PNG decision, done lines 17–19/67–69/71/77/85/92–93/106–107/122/128 | [2026-11-27][DIE] | Promoted and delivered or already marked done; live transport is carried separately above. |
+| 2026-11-24/25/26 decided-or-completed lines — SSE envelopes API-local (ADR 0009), Windows `make` parity, lane-shim retirement, lockfile regeneration, G3 `x-request-id` + H residuals, stash reconciliation, L14 sign-off, superseded next-milestone candidates | [2026-11-27][DIE] | Decisions shipped or work completed; direct Makefile recipes are the standing Windows workaround. |
+| 2026-11-24/25 future ideas and deferred UX nits — ColPali, voice, mobile, gamification, performance tuning, handwriting/non-past-paper OCR, scaling/deployment, fake-backend banner, localized image-failure copy, configurable SSE timeout, grounded-citation-usage check | [2026-11-27][DIE] | Closed with this campaign, not scheduled for phase 2; re-promotion requires a new ADR. |
+
+No line above remains open at campaign close. The phase-2 starting set is the
+nine `CARRY` rows above; all `DIE` rows are closed as recorded, and the two
+pre-existing stashes were left untouched.
